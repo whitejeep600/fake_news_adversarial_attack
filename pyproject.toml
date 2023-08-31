@@ -1,0 +1,28 @@
+[tool.black]
+line-length = 88
+target-version = ['py310']
+include = '\.py$'
+exclude = '''
+/(
+  | \.git
+)/
+'''
+
+[tool.isort]
+profile = "black"
+line_length = 88
+
+[tool.poetry]
+name = "adversarial"
+version = "0.0.0"
+description = ""
+authors = ["Antoni Maciag <antoni.maciag1@gmail.com>"]
+readme = "README.md"
+
+[tool.poetry.dependencies]
+python = "~3.10"
+
+black = "*"
+flake8 = "*"
+isort = "*"
+mypy = "*"
