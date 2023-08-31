@@ -1,0 +1,4 @@
+src.train_eval_split:
+  source_path: data/train.csv
+  target_train_path: data/train.csv
+  target_eval_path: data/eval.csv
