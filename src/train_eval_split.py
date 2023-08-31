@@ -4,11 +4,7 @@ import pandas as pd
 import yaml
 
 
-def main(
-        source_path: Path,
-        target_train_path: Path,
-        target_eval_path: Path
-):
+def main(source_path: Path, target_train_path: Path, target_eval_path: Path):
     df = pd.read_csv(source_path)
     eval_split = df.sample(frac=0.1, random_state=2137)
     train_split = df.drop(eval_split.index)
@@ -23,8 +19,4 @@ if __name__ == "__main__":
     source_path = Path(params["source_path"])
     target_train_path = Path(params["target_train_path"])
     target_eval_path = Path(params["target_eval_path"])
-    main(
-        source_path,
-        target_train_path,
-        target_eval_path
-    )
+    main(source_path, target_train_path, target_eval_path)

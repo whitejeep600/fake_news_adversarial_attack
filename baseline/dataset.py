@@ -1,0 +1,51 @@
+from pathlib import Path
+
+import pandas as pd
+import torch
+from pandas import DataFrame
+from torch.utils.data import Dataset
+from transformers import PreTrainedTokenizer
+
+
+def concatenate_article_data(source_df: DataFrame):
+    # todo add separation by special tokens, or at least
+    #  annotations (like "author: ..., title: ..."
+    return str(source_df.title) + str(source_df.author) + str(source_df.text)
+
+
+class FakeNewsDataset(Dataset):
+    def __init__(
+        self, dataset_csv_path: Path, tokenizer: PreTrainedTokenizer, max_length: int
+    ):
+        super().__init__()
+        source_df = pd.read_csv(dataset_csv_path)
+
+        processed_df = pd.DataFrame()
+        processed_df["text"] = source_df.apply(
+            lambda x: concatenate_article_data(x), axis=1
+        )
+
+        processed_df["label"] = source_df["label"]
+
+        self.df = processed_df
+        self.tokenizer = tokenizer
+        self.max_length = max_length
+
+    def __len__(self):
+        return len(self.df)
+
+    def __getitem__(self, ind):
+        text = self.df.iloc[ind, :]["text"]
+        label = self.df.iloc[ind, :]["label"]
+        tokenized_text = self.tokenizer(
+            text,
+            return_tensors="pt",
+            max_length=self.max_length,
+            padding="max_length",
+            truncation=True,
+        )
+        return {
+            "input_ids": tokenized_text["input_ids"].flatten(),
+            "attention_mask": tokenized_text["attention_mask"].flatten(),
+            "label": torch.tensor(label),
+        }
