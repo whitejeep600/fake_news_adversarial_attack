@@ -7,8 +7,8 @@ from torch.nn.modules.loss import _Loss
 from torch.optim import Optimizer
 from torch.utils.data import DataLoader
 from tqdm import tqdm
-from transformers import AdamW, AutoTokenizer
-
+from transformers import AutoTokenizer
+from torch.optim import AdamW
 from baseline.dataset import FakeNewsDataset
 from baseline.model import BaselineBert
 
@@ -23,7 +23,10 @@ def train_iteration(
     model.train()
     losses: list[float] = []
     for batch in tqdm(
-        train_dataloader, total=len(train_dataloader), desc="train iteration"
+            train_dataloader,
+            total=len(train_dataloader),
+            desc="train iteration",
+            leave=False
     ):
         input_ids = batch["input_ids"].to(get_device())
         attention_masks = batch["attention_mask"].to(get_device())
@@ -39,7 +42,7 @@ def train_iteration(
         optimizer.step()
 
     avg_train_loss = sum(losses) / len(losses)
-    print(f"Average train loss: {avg_train_loss}")
+    print(f"Average train loss: {avg_train_loss}\n")
 
 
 def calculate_stats(
@@ -73,7 +76,10 @@ def eval_iteration(
     fn_total = 0
     with torch.no_grad():
         for batch in tqdm(
-            eval_dataloader, total=len(eval_dataloader), desc="eval iteration"
+                eval_dataloader,
+                total=len(eval_dataloader),
+                desc="eval iteration",
+                leave=False
         ):
             input_ids = batch["input_ids"].to(get_device())
             attention_masks = batch["attention_mask"].to(get_device())
@@ -94,8 +100,8 @@ def eval_iteration(
     F1 = 2 * (precision * recall) / (precision + recall)
     avg_eval_loss = sum(losses) / len(losses)
     print(
-        f"Eval stats: avg loss {avg_eval_loss}, precision: {precision}, "
-        f"recall: {recall}, F1: {F1}"
+        f"\nEval stats: avg loss {avg_eval_loss}, precision: {precision}, "
+        f"recall: {recall}, F1: {F1}\n\n"
     )
 
 
