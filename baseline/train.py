@@ -89,8 +89,8 @@ def eval_iteration(
             fp_total += fp
             fn_total += fn
 
-    precision = tp / (tp + fp)
-    recall = tp / (tp + fn)
+    precision = tp_total / (tp_total + fp_total)
+    recall = tp_total / (tp_total + fn_total)
     F1 = 2 * (precision * recall) / (precision + recall)
     avg_eval_loss = sum(losses) / len(losses)
     print(
