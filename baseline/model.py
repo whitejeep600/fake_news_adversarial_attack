@@ -9,7 +9,11 @@ class BaselineBert(torch.nn.Module):
         self.bert = BertModel.from_pretrained(bert_model_name)
         self.linear_to_logits = Linear(self.bert.config.hidden_size, n_classes)
 
-    def forward(self, input_ids, attention_mask):
+    def forward(
+            self,
+            input_ids: torch.Tensor,
+            attention_mask: torch.Tensor
+    ) -> torch.Tensor:
         outputs = self.bert(input_ids=input_ids, attention_mask=attention_mask)
         pooled = (
             outputs.pooler_output

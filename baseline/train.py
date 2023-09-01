@@ -67,13 +67,14 @@ def calculate_stats(
 
 
 def eval_iteration(
-    model: nn.Module, eval_dataloader: DataLoader, loss_fn: _Loss
+    model: nn.Module, eval_dataloader: DataLoader, loss_fn: _Loss, save_path: Path
 ) -> None:
     model.eval()
     losses: list[float] = []
     tp_total = 0
     fp_total = 0
     fn_total = 0
+    best_F1 = 0
     with torch.no_grad():
         for batch in tqdm(
                 eval_dataloader,
@@ -103,6 +104,9 @@ def eval_iteration(
         f"eval stats: avg loss {avg_eval_loss}, precision: {precision}, "
         f"recall: {recall}, F1: {F1}\n\n"
     )
+    if F1 > best_F1:
+        best_F1 = F1
+        torch.save(model.state_dict(), save_path)
 
 
 def train(
@@ -111,13 +115,15 @@ def train(
     eval_dataloader: DataLoader,
     n_epochs: int,
     lr: float,
+    save_path: Path
 ):
     loss_fn = nn.CrossEntropyLoss()
     optimizer = AdamW(model.parameters(), lr=lr)
+    save_path.parent.mkdir(exist_ok=True)
 
     for _ in tqdm(range(n_epochs), total=n_epochs, desc="training the model"):
         train_iteration(model, train_dataloader, loss_fn, optimizer)
-        eval_iteration(model, eval_dataloader, loss_fn)
+        eval_iteration(model, eval_dataloader, loss_fn, save_path)
 
 
 def main(
@@ -128,6 +134,7 @@ def main(
     max_length: int,
     n_epochs: int,
     lr: float,
+    save_path: Path
 ):
     tokenizer = AutoTokenizer.from_pretrained(bert_model_name)
     tokenizer.model_max_length = max_length
@@ -140,7 +147,7 @@ def main(
     train_dataloader = DataLoader(train_dataset, batch_size=batch_size)
     eval_dataloader = DataLoader(eval_dataset, batch_size=batch_size)
 
-    train(model, train_dataloader, eval_dataloader, n_epochs, lr)
+    train(model, train_dataloader, eval_dataloader, n_epochs, lr, save_path)
 
 
 if __name__ == "__main__":
@@ -152,6 +159,7 @@ if __name__ == "__main__":
     max_length = int(baseline_params["max_length"])
     n_epochs = int(baseline_params["n_epochs"])
     lr = float(baseline_params["lr"])
+    save_path = Path(baseline_params["save_path"])
     main(
         train_split_path,
         eval_split_path,
@@ -160,4 +168,5 @@ if __name__ == "__main__":
         max_length,
         n_epochs,
         lr,
+        save_path
     )

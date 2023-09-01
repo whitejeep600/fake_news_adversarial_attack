@@ -11,6 +11,7 @@ baseline:
   max_length: 512
   n_epochs: 4
   lr: 1e-4
+  save_path: models/baseline.pt
   # todo: out of 18720 samples in the train set, only 8825 are actually
   # shorter than that; try increasing max length or processing in chunks
 
