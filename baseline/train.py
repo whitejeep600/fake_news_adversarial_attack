@@ -42,7 +42,7 @@ def train_iteration(
         optimizer.step()
 
     avg_train_loss = sum(losses) / len(losses)
-    print(f"Average train loss: {avg_train_loss}\n")
+    print(f"\naverage train loss: {avg_train_loss}")
 
 
 def calculate_stats(
@@ -100,7 +100,7 @@ def eval_iteration(
     F1 = 2 * (precision * recall) / (precision + recall)
     avg_eval_loss = sum(losses) / len(losses)
     print(
-        f"\nEval stats: avg loss {avg_eval_loss}, precision: {precision}, "
+        f"eval stats: avg loss {avg_eval_loss}, precision: {precision}, "
         f"recall: {recall}, F1: {F1}\n\n"
     )
 
