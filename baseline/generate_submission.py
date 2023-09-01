@@ -22,6 +22,7 @@ def main(
 ) -> None:
     model = BaselineBert(bert_model_name, 2)
     model.load_state_dict(torch.load(model_path))
+    model.to(get_device())
     model.eval()
     tokenizer = AutoTokenizer.from_pretrained(bert_model_name)
     test_dataset = FakeNewsDataset(test_split_path, tokenizer, max_length)
