@@ -25,8 +25,10 @@ class FakeNewsDataset(Dataset):
         processed_df["text"] = source_df.apply(
             lambda x: concatenate_article_data(x), axis=1
         )
-
-        processed_df["label"] = source_df["label"]
+        if "label" in source_df.columns:
+            processed_df["label"] = source_df["label"]
+        else:
+            processed_df["label"] = -1
         processed_df["id"] = source_df["id"]
 
         self.df = processed_df
