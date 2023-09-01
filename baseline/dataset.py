@@ -27,6 +27,7 @@ class FakeNewsDataset(Dataset):
         )
 
         processed_df["label"] = source_df["label"]
+        processed_df["id"] = source_df["id"]
 
         self.df = processed_df
         self.tokenizer = tokenizer
@@ -38,6 +39,7 @@ class FakeNewsDataset(Dataset):
     def __getitem__(self, ind):
         text = self.df.iloc[ind, :]["text"]
         label = self.df.iloc[ind, :]["label"]
+        id = self.df.iloc[ind, :]["id"]
         tokenized_text = self.tokenizer(
             text,
             return_tensors="pt",
@@ -49,4 +51,5 @@ class FakeNewsDataset(Dataset):
             "input_ids": tokenized_text["input_ids"].flatten(),
             "attention_mask": tokenized_text["attention_mask"].flatten(),
             "label": torch.tensor(label),
+            "id": torch.tensor(id),
         }

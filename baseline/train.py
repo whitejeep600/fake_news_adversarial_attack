@@ -11,10 +11,7 @@ from transformers import AutoTokenizer
 from torch.optim import AdamW
 from baseline.dataset import FakeNewsDataset
 from baseline.model import BaselineBert
-
-
-def get_device() -> str:
-    return "cuda:0" if torch.cuda.is_available() else "cpu"
+from src.torch_utils import get_device
 
 
 def train_iteration(
@@ -23,10 +20,10 @@ def train_iteration(
     model.train()
     losses: list[float] = []
     for batch in tqdm(
-            train_dataloader,
-            total=len(train_dataloader),
-            desc="train iteration",
-            leave=False
+        train_dataloader,
+        total=len(train_dataloader),
+        desc="train iteration",
+        leave=False,
     ):
         input_ids = batch["input_ids"].to(get_device())
         attention_masks = batch["attention_mask"].to(get_device())
@@ -77,10 +74,10 @@ def eval_iteration(
     best_F1 = 0
     with torch.no_grad():
         for batch in tqdm(
-                eval_dataloader,
-                total=len(eval_dataloader),
-                desc="eval iteration",
-                leave=False
+            eval_dataloader,
+            total=len(eval_dataloader),
+            desc="eval iteration",
+            leave=False,
         ):
             input_ids = batch["input_ids"].to(get_device())
             attention_masks = batch["attention_mask"].to(get_device())
@@ -115,7 +112,7 @@ def train(
     eval_dataloader: DataLoader,
     n_epochs: int,
     lr: float,
-    save_path: Path
+    save_path: Path,
 ):
     loss_fn = nn.CrossEntropyLoss()
     optimizer = AdamW(model.parameters(), lr=lr)
@@ -134,10 +131,10 @@ def main(
     max_length: int,
     n_epochs: int,
     lr: float,
-    save_path: Path
+    save_path: Path,
 ):
     tokenizer = AutoTokenizer.from_pretrained(bert_model_name)
-    tokenizer.model_max_length = max_length
+
     model = BaselineBert(bert_model_name, 2)
     model.to(get_device())
 
@@ -168,5 +165,5 @@ if __name__ == "__main__":
         max_length,
         n_epochs,
         lr,
-        save_path
+        save_path,
     )
