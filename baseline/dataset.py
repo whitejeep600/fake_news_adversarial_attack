@@ -8,9 +8,10 @@ from transformers import PreTrainedTokenizer
 
 
 def concatenate_article_data(source_df: DataFrame):
-    # todo add separation by special tokens, or at least
-    #  annotations (like "author: ..., title: ..."
-    return str(source_df.title) + str(source_df.author) + str(source_df.text)
+    # These could probably be new special tokens instead, but those wouldn't have
+    # any pretrained meaning associated with them, while the words below do.
+    title, author, text = [str(source_df[key]) for key in ["title", "author", "text"]]
+    return f"title: {title}\nauthor: {author}\n text: {source_df.text}"
 
 
 class FakeNewsDataset(Dataset):

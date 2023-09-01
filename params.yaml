@@ -4,9 +4,13 @@ src.train_eval_split:
   target_eval_path: data/eval.csv
 
 baseline:
-  bert_model_name: bert-base-uncased
+  bert_model_name: prajjwal1/bert-tiny  # todo probably not, just for testing
   train_split_path: data/train.csv
   eval_split_path: data/eval.csv
   batch_size: 32
-  max_length: 1024
+  max_length: 512
+  n_epochs: 4
+  lr: 1e-4
+  # todo: out of 18720 samples in the train set, only 8825 are actually
+  # shorter than that; try increasing max length or processing in chunks
 
