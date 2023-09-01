@@ -44,11 +44,11 @@ def main(
             prediction_logits = model(input_ids, attention_masks)
             prediction_classes = torch.argmax(prediction_logits, dim=1)
 
-            all_ids += ids
+            all_ids += ids.tolist()
             all_labels += prediction_classes.tolist()
 
     df = pd.DataFrame(list(zip(all_ids, all_labels)), columns=["id", "label"])
-    df.to_csv(target_path)
+    df.to_csv(target_path, index=False)
 
 
 if __name__ == "__main__":
