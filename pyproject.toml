@@ -19,8 +19,19 @@ description = ""
 authors = ["Antoni Maciag <antoni.maciag1@gmail.com>"]
 readme = "README.md"
 
+[[tool.poetry.source]]
+name = "torchcpu"
+url = "https://download.pytorch.org/whl/cpu/"
+priority = "supplemental"
+
+[[tool.poetry.source]]
+name = "PyPI"
+priority = "primary"
+
 [tool.poetry.dependencies]
 python = "~3.10"
+torch = { version = "2.0.1+cpu", source = "torchcpu" }
+torchvision = { version = "0.15.2+cpu", source = "torchcpu" }
 
 black = "*"
 flake8 = "*"
@@ -30,4 +41,3 @@ pandas = "*"
 pyyaml = "*"
 transformers = "*"
 sympy = "*"
-torch = "*"
