@@ -11,7 +11,7 @@ def concatenate_article_data(source_df: DataFrame):
     # These could probably be new special tokens instead, but those wouldn't have
     # any pretrained meaning associated with them, while the words below do.
     title, author, text = [str(source_df[key]) for key in ["title", "author", "text"]]
-    return f"title: {title}\nauthor: {author}\n text: {source_df.text}"
+    return f"title: {title}\nauthor: {author}\n text: {text}"
 
 
 class FakeNewsDataset(Dataset):

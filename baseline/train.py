@@ -4,11 +4,11 @@ import torch.nn
 import yaml
 from torch import nn
 from torch.nn.modules.loss import _Loss
-from torch.optim import Optimizer
+from torch.optim import AdamW, Optimizer
 from torch.utils.data import DataLoader
 from tqdm import tqdm
 from transformers import AutoTokenizer
-from torch.optim import AdamW
+
 from baseline.dataset import FakeNewsDataset
 from baseline.model import BaselineBert
 from src.torch_utils import get_device
@@ -65,7 +65,7 @@ def calculate_stats(
 
 def eval_iteration(
     model: nn.Module, eval_dataloader: DataLoader, loss_fn: _Loss
-) -> float:
+) -> float | None:
     model.eval()
     losses: list[float] = []
     tp_total = 0
@@ -92,9 +92,13 @@ def eval_iteration(
             fp_total += fp
             fn_total += fn
 
-    precision = tp_total / (tp_total + fp_total)
-    recall = tp_total / (tp_total + fn_total)
-    F1 = 2 * (precision * recall) / (precision + recall)
+    precision = tp_total / (tp_total + fp_total) if tp_total + fp_total != 0 else None
+    recall = tp_total / (tp_total + fn_total) if tp_total + fn_total != 0 else None
+    F1 = (
+        2 * (precision * recall) / (precision + recall)
+        if recall and precision
+        else None
+    )
     avg_eval_loss = sum(losses) / len(losses)
     print(
         f"eval stats: avg loss {avg_eval_loss}, precision: {precision}, "
@@ -114,12 +118,12 @@ def train(
     loss_fn = nn.CrossEntropyLoss()
     optimizer = AdamW(model.parameters(), lr=lr)
     save_path.parent.mkdir(exist_ok=True)
-    best_F1 = 0
+    best_F1 = 0.0
 
     for _ in tqdm(range(n_epochs), total=n_epochs, desc="training the model"):
         train_iteration(model, train_dataloader, loss_fn, optimizer)
         F1 = eval_iteration(model, eval_dataloader, loss_fn)
-        if F1 > best_F1:
+        if F1 is not None and F1 > best_F1:
             best_F1 = F1
             torch.save(model.state_dict(), save_path)
 
