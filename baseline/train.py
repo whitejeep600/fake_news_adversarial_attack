@@ -64,14 +64,13 @@ def calculate_stats(
 
 
 def eval_iteration(
-    model: nn.Module, eval_dataloader: DataLoader, loss_fn: _Loss, save_path: Path
-) -> None:
+    model: nn.Module, eval_dataloader: DataLoader, loss_fn: _Loss
+) -> float:
     model.eval()
     losses: list[float] = []
     tp_total = 0
     fp_total = 0
     fn_total = 0
-    best_F1 = 0
     with torch.no_grad():
         for batch in tqdm(
             eval_dataloader,
@@ -101,9 +100,7 @@ def eval_iteration(
         f"eval stats: avg loss {avg_eval_loss}, precision: {precision}, "
         f"recall: {recall}, F1: {F1}\n\n"
     )
-    if F1 > best_F1:
-        best_F1 = F1
-        torch.save(model.state_dict(), save_path)
+    return F1
 
 
 def train(
@@ -117,10 +114,14 @@ def train(
     loss_fn = nn.CrossEntropyLoss()
     optimizer = AdamW(model.parameters(), lr=lr)
     save_path.parent.mkdir(exist_ok=True)
+    best_F1 = 0
 
     for _ in tqdm(range(n_epochs), total=n_epochs, desc="training the model"):
         train_iteration(model, train_dataloader, loss_fn, optimizer)
-        eval_iteration(model, eval_dataloader, loss_fn, save_path)
+        F1 = eval_iteration(model, eval_dataloader, loss_fn)
+        if F1 > best_F1:
+            best_F1 = F1
+            torch.save(model.state_dict(), save_path)
 
 
 def main(
