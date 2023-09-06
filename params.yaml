@@ -8,7 +8,9 @@ src.evaluate_attack:
   model_name: prajjwal1/bert-tiny
   model_class: baseline
   weights_path: checkpoints/baseline_6_IX.pt
-  attacker_name: attacker_name
+  attacker_name: trivial
+  similarity_evaluator_name: flax-sentence-embeddings/all_datasets_v4_MiniLM-L6
+  max_length: 512
 
 
 models.baseline:

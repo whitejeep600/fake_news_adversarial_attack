@@ -41,10 +41,10 @@ class FakeNewsDataset(Dataset):
     def __len__(self):
         return len(self.df)
 
-    def __getitem__(self, ind):
-        text = self.df.iloc[ind, :]["text"]
-        label = self.df.iloc[ind, :]["label"]
-        id = self.df.iloc[ind, :]["id"]
+    def __getitem__(self, i):
+        text = self.df.iloc[i, :]["text"]
+        label = self.df.iloc[i, :]["label"]
+        id = self.df.iloc[i, :]["id"]
         tokenized_text = self.tokenizer(
             text,
             return_tensors="pt",
@@ -58,3 +58,10 @@ class FakeNewsDataset(Dataset):
             "label": torch.tensor(label),
             "id": torch.tensor(id),
         }
+
+    def iterate_untokenized(self):
+        for i in range(len(self)):
+            yield {
+                "text": self.df.iloc[i, :]["text"],
+                "label": self.df.iloc[i, :]["label"]
+            }
