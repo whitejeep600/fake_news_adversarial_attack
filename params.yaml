@@ -3,7 +3,15 @@ src.train_eval_split:
   target_train_path: data/train.csv
   target_eval_path: data/eval.csv
 
-baseline:
+src.evaluate_attack:
+  eval_split_path: data/eval.csv
+  model_name: prajjwal1/bert-tiny
+  model_class: baseline
+  weights_path: checkpoints/baseline_6_IX.pt
+  attacker_name: attacker_name
+
+
+models.baseline:
   bert_model_name: prajjwal1/bert-tiny  # todo probably not, just for testing
   train_split_path: data/train.csv
   eval_split_path: data/eval.csv

@@ -9,9 +9,9 @@ from torch.utils.data import DataLoader
 from tqdm import tqdm
 from transformers import AutoTokenizer
 
-from baseline.dataset import FakeNewsDataset
-from baseline.model import BaselineBert
-from src.torch_utils import get_device
+from models.baseline.dataset import FakeNewsDataset
+from models.baseline.model import BaselineBert
+from src.torch_utils import get_available_torch_device
 
 
 def train_iteration(
@@ -25,9 +25,9 @@ def train_iteration(
         desc="train iteration",
         leave=False,
     ):
-        input_ids = batch["input_ids"].to(get_device())
-        attention_masks = batch["attention_mask"].to(get_device())
-        labels = batch["label"].to(get_device())
+        input_ids = batch["input_ids"].to(get_available_torch_device())
+        attention_masks = batch["attention_mask"].to(get_available_torch_device())
+        labels = batch["label"].to(get_available_torch_device())
 
         optimizer.zero_grad()
 
@@ -78,9 +78,9 @@ def eval_iteration(
             desc="eval iteration",
             leave=False,
         ):
-            input_ids = batch["input_ids"].to(get_device())
-            attention_masks = batch["attention_mask"].to(get_device())
-            labels = batch["label"].to(get_device())
+            input_ids = batch["input_ids"].to(get_available_torch_device())
+            attention_masks = batch["attention_mask"].to(get_available_torch_device())
+            labels = batch["label"].to(get_available_torch_device())
 
             prediction_logits = model(input_ids, attention_masks)
             loss = loss_fn(prediction_logits, labels)
@@ -141,7 +141,7 @@ def main(
     tokenizer = AutoTokenizer.from_pretrained(bert_model_name)
 
     model = BaselineBert(bert_model_name, 2)
-    model.to(get_device())
+    model.to(get_available_torch_device())
 
     train_dataset = FakeNewsDataset(train_split_path, tokenizer, max_length)
     eval_dataset = FakeNewsDataset(eval_split_path, tokenizer, max_length)
@@ -153,7 +153,7 @@ def main(
 
 
 if __name__ == "__main__":
-    baseline_params = yaml.safe_load(open("params.yaml"))["baseline"]
+    baseline_params = yaml.safe_load(open("params.yaml"))["models.baseline"]
     bert_model_name = baseline_params["bert_model_name"]
     train_split_path = Path(baseline_params["train_split_path"])
     eval_split_path = Path(baseline_params["eval_split_path"])

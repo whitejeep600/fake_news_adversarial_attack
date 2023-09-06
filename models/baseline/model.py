@@ -2,8 +2,10 @@ import torch
 from torch.nn import Linear
 from transformers import BertModel
 
+from models.base import FakeNewsDetector
 
-class BaselineBert(torch.nn.Module):
+
+class BaselineBert(FakeNewsDetector):
     def __init__(self, bert_model_name: str, n_classes: int):
         super().__init__()
         self.bert = BertModel.from_pretrained(bert_model_name)
