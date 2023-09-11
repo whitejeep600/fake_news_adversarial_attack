@@ -63,5 +63,5 @@ class FakeNewsDataset(Dataset):
         for i in range(len(self)):
             yield {
                 "text": self.df.iloc[i, :]["text"],
-                "label": self.df.iloc[i, :]["label"]
+                "label": self.df.iloc[i, :]["label"],
             }

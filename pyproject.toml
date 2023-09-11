@@ -39,6 +39,9 @@ isort = "*"
 mypy = "*"
 pandas = "*"
 pyyaml = "*"
+huggingface-hub = "0.15.1"
 transformers = "*"
 sympy = "*"
 sentence_transformers = "*"
+
+

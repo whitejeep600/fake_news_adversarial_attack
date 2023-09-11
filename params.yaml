@@ -12,7 +12,6 @@ src.evaluate_attack:
   similarity_evaluator_name: flax-sentence-embeddings/all_datasets_v4_MiniLM-L6
   max_length: 512
 
-
 models.baseline:
   bert_model_name: prajjwal1/bert-tiny  # todo probably not, just for testing
   train_split_path: data/train.csv
