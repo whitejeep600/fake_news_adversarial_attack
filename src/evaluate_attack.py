@@ -7,7 +7,7 @@ from sentence_transformers import SentenceTransformer
 from tqdm import tqdm
 
 from attacks.base import AdversarialAttacker
-from attacks.text_fooler import TextFoolerAttacker
+from attacks.text_fooler.text_fooler import TextFoolerAttacker
 from models.base import FakeNewsDetector
 from models.baseline.dataset import FakeNewsDataset
 from models.baseline.model import BaselineBert

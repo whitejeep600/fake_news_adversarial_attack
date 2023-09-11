@@ -45,6 +45,8 @@ class TextFoolerAttacker(AdversarialAttacker):
                 break
         # extract N candidates - words with the same POS tag, and high cosine
         #     similarity
+        #     note: POS depends on the context so to filter that out,
+        #       fist make the replacement and then check if the same pos
         #   for each candidate, get the influence on model prediction and
         #     similarity score with the sentence after replacement
         #   filter out candidates whose similarity is too low
@@ -53,9 +55,4 @@ class TextFoolerAttacker(AdversarialAttacker):
         #   otherwise, take the one with the biggest influence on prediction
         #     note: this could instead be balanced to choose a word that
         #     both keeps the similarity high and affects the score a lot
-        while (
-                self.similarity_evaluator.evaluate(text, " ".join(words))
-                > self.similarity_threshold
-        ):
-            pass
         return " ".join(words)
