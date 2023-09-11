@@ -50,14 +50,15 @@ def main(
         raise ValueError("Unsupported attacker name")
     if model_class not in MODELS_DICT.keys():
         raise ValueError("Unsupported model name")
+    device = get_available_torch_device()
     attacker = ATTACKERS_DICT[attacker_name]()
     model = MODELS_DICT[model_class](model_name, 2)
     model.load_state_dict(
         torch.load(
-            weights_path, map_location=torch.device(get_available_torch_device())
+            weights_path, map_location=torch.device(device)
         )
     )
-    model.to(get_available_torch_device())
+    model.to(device)
     model.eval()
     similarity_evaluator = SimilarityEvaluator(similarity_evaluator_name)
 
@@ -81,8 +82,8 @@ def main(
             truncation=True,
         )
         model_prediction = model.get_label(
-            tokenized_text["input_ids"],
-            tokenized_text["attention_mask"],
+            tokenized_text["input_ids"].to(device),
+            tokenized_text["attention_mask"].to(device),
         )
         if label != model_prediction:
             n_skipped += 1
@@ -98,8 +99,8 @@ def main(
             truncation=True,
         )
         adversarial_prediction = model.get_label(
-            tokenized_adversarial_text["input_ids"],
-            tokenized_adversarial_text["attention_mask"],
+            tokenized_adversarial_text["input_ids"].to(device),
+            tokenized_adversarial_text["attention_mask"].to(device),
         )
         semantic_similarity = similarity_evaluator.evaluate(
             original_text, adversarial_example
