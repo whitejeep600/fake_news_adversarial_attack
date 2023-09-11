@@ -1,0 +1,3 @@
+text_fooler:
+  similarity_evaluator_name: flax-sentence-embeddings/all_datasets_v4_MiniLM-L6
+  similarity_threshold: 0.7

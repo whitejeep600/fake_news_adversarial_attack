@@ -11,13 +11,15 @@ class AttackSingleSampleMetrics:
 
 
 class AttackAggregateMetrics:
-    def __init__(self, success_rate: float, avg_semantic_similarity: float):
+    def __init__(
+        self, success_rate: float, avg_semantic_similarity: float, n_skipped: int
+    ):
         self.success_rate = success_rate
         self.avg_semantic_similarity = avg_semantic_similarity
 
     @classmethod
     def from_aggregation(
-        cls, sample_metrics: list[AttackSingleSampleMetrics]
+        cls, sample_metrics: list[AttackSingleSampleMetrics], n_skipped: int
     ) -> "AttackAggregateMetrics":
         n_successful = len(
             [metrics for metrics in sample_metrics if metrics.successfully_attacked()]
@@ -26,7 +28,7 @@ class AttackAggregateMetrics:
         avg_semantic_similarity = sum(
             [metrics.semantic_similarity for metrics in sample_metrics]
         ) / len(sample_metrics)
-        return AttackAggregateMetrics(success_rate, avg_semantic_similarity)
+        return AttackAggregateMetrics(success_rate, avg_semantic_similarity, n_skipped)
 
     def print_summary(self):
         print(

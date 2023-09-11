@@ -7,7 +7,6 @@ from torch.nn.modules.loss import _Loss
 from torch.optim import AdamW, Optimizer
 from torch.utils.data import DataLoader
 from tqdm import tqdm
-from transformers import AutoTokenizer
 
 from models.baseline.dataset import FakeNewsDataset
 from models.baseline.model import BaselineBert
@@ -15,7 +14,11 @@ from src.torch_utils import get_available_torch_device
 
 
 def train_iteration(
-    model: nn.Module, train_dataloader: DataLoader, loss_fn: _Loss, optimizer: Optimizer
+    model: nn.Module,
+    train_dataloader: DataLoader,
+    loss_fn: _Loss,
+    optimizer: Optimizer,
+    device: str,
 ) -> None:
     model.train()
     losses: list[float] = []
@@ -25,9 +28,9 @@ def train_iteration(
         desc="train iteration",
         leave=False,
     ):
-        input_ids = batch["input_ids"].to(get_available_torch_device())
-        attention_masks = batch["attention_mask"].to(get_available_torch_device())
-        labels = batch["label"].to(get_available_torch_device())
+        input_ids = batch["input_ids"].to(device)
+        attention_masks = batch["attention_mask"].to(device)
+        labels = batch["label"].to(device)
 
         optimizer.zero_grad()
 
@@ -64,7 +67,7 @@ def calculate_stats(
 
 
 def eval_iteration(
-    model: nn.Module, eval_dataloader: DataLoader, loss_fn: _Loss
+    model: nn.Module, eval_dataloader: DataLoader, loss_fn: _Loss, device: str
 ) -> float | None:
     model.eval()
     losses: list[float] = []
@@ -78,9 +81,9 @@ def eval_iteration(
             desc="eval iteration",
             leave=False,
         ):
-            input_ids = batch["input_ids"].to(get_available_torch_device())
-            attention_masks = batch["attention_mask"].to(get_available_torch_device())
-            labels = batch["label"].to(get_available_torch_device())
+            input_ids = batch["input_ids"].to(device)
+            attention_masks = batch["attention_mask"].to(device)
+            labels = batch["label"].to(device)
 
             prediction_logits = model(input_ids, attention_masks)
             loss = loss_fn(prediction_logits, labels)
@@ -114,6 +117,7 @@ def train(
     n_epochs: int,
     lr: float,
     save_path: Path,
+    device: str,
 ):
     loss_fn = nn.CrossEntropyLoss()
     optimizer = AdamW(model.parameters(), lr=lr)
@@ -121,8 +125,8 @@ def train(
     best_F1 = 0.0
 
     for _ in tqdm(range(n_epochs), total=n_epochs, desc="training the model"):
-        train_iteration(model, train_dataloader, loss_fn, optimizer)
-        F1 = eval_iteration(model, eval_dataloader, loss_fn)
+        train_iteration(model, train_dataloader, loss_fn, optimizer, device)
+        F1 = eval_iteration(model, eval_dataloader, loss_fn, device)
         if F1 is not None and F1 > best_F1:
             best_F1 = F1
             torch.save(model.state_dict(), save_path)
@@ -131,25 +135,23 @@ def train(
 def main(
     train_split_path: Path,
     eval_split_path: Path,
-    bert_model_name: str,
     batch_size: int,
-    max_length: int,
     n_epochs: int,
     lr: float,
     save_path: Path,
+    model_config: dict,
 ):
-    tokenizer = AutoTokenizer.from_pretrained(bert_model_name)
+    device = get_available_torch_device()
+    model_config["device"] = device
+    model = BaselineBert(**model_config)
 
-    model = BaselineBert(bert_model_name, 2)
-    model.to(get_available_torch_device())
-
-    train_dataset = FakeNewsDataset(train_split_path, tokenizer, max_length)
-    eval_dataset = FakeNewsDataset(eval_split_path, tokenizer, max_length)
+    train_dataset = FakeNewsDataset(train_split_path, model.tokenizer, model.max_length)
+    eval_dataset = FakeNewsDataset(eval_split_path, model.tokenizer, model.max_length)
 
     train_dataloader = DataLoader(train_dataset, batch_size=batch_size)
     eval_dataloader = DataLoader(eval_dataset, batch_size=batch_size)
 
-    train(model, train_dataloader, eval_dataloader, n_epochs, lr, save_path)
+    train(model, train_dataloader, eval_dataloader, n_epochs, lr, save_path, device)
 
 
 if __name__ == "__main__":
@@ -162,13 +164,13 @@ if __name__ == "__main__":
     n_epochs = int(baseline_params["n_epochs"])
     lr = float(baseline_params["lr"])
     save_path = Path(baseline_params["save_path"])
+    model_config = yaml.safe_load(open("model_configs.yaml"))["baseline"]
     main(
         train_split_path,
         eval_split_path,
-        bert_model_name,
         batch_size,
-        max_length,
         n_epochs,
         lr,
         save_path,
+        model_config,
     )

@@ -1,15 +1,22 @@
 import torch
 from torch.nn import Linear
-from transformers import BertModel
+from transformers import BertModel, AutoTokenizer
 
 from models.base import FakeNewsDetector
 
 
 class BaselineBert(FakeNewsDetector):
-    def __init__(self, bert_model_name: str, n_classes: int):
-        super().__init__()
-        self.bert = BertModel.from_pretrained(bert_model_name)
+    def __init__(
+        self, model_name: str, n_classes: int, max_length: int, device: str
+    ):
+        super().__init__(
+            AutoTokenizer.from_pretrained(model_name), max_length, device
+        )
+        self.bert = BertModel.from_pretrained(model_name)
         self.linear_to_logits = Linear(self.bert.config.hidden_size, n_classes)
+        self.max_length = max_length
+        self.device = device
+        self.to(device)
 
     def forward(
         self, input_ids: torch.Tensor, attention_mask: torch.Tensor

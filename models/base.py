@@ -1,7 +1,25 @@
 import torch
+from transformers import PreTrainedTokenizer
 
 
 class FakeNewsDetector(torch.nn.Module):
-    def get_label(self, input_ids: torch.Tensor, attention_mask: torch.Tensor):
-        prediction_logits = self(input_ids, attention_mask)
-        return torch.argmax(prediction_logits, dim=1).item()
+    def __init__(self, tokenizer: PreTrainedTokenizer, max_length: int, device: str):
+        super().__init__()
+        self.tokenizer = tokenizer
+        self.max_length = max_length
+        self.device = device
+
+    def get_logits(self, text: str):
+        tokenized_text = self.tokenizer(
+            text,
+            return_tensors="pt",
+            max_length=self.max_length,
+            padding="max_length",
+            truncation=True,
+        )
+        input_ids = tokenized_text["input_ids"].to(self.device)
+        attention_mask = tokenized_text["attention_mask"].to(self.device)
+        return self(input_ids, attention_mask)
+
+    def get_prediction(self, text: str):
+        return torch.argmax(self.get_logits(text)).item()

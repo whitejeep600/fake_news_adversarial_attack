@@ -1,0 +1,4 @@
+baseline:
+  model_name: prajjwal1/bert-tiny
+  n_classes: 2
+  max_length: 512
