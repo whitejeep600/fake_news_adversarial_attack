@@ -142,7 +142,7 @@ class TextFoolerAttacker(AdversarialAttacker):
             confidences = confidences[high_similarity_candidate_indices]
             similarities = similarities[high_similarity_candidate_indices]
 
-            successful_candidate_indices = np.where(confidences < 0.5)
+            successful_candidate_indices = np.where(confidences < 0.5)[0]
             if successful_candidate_indices:
                 highest_similarity_index = similarities.argmax()
                 words[i] = candidates[highest_similarity_index]
