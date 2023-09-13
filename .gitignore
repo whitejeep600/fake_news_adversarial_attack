@@ -1,3 +1,4 @@
 data/
 .idea/
 *__pycache__/
+attacks/text_fooler/neighbors.json

@@ -24,3 +24,7 @@ models.baseline:
   # todo: out of 18720 samples in the train set, only 8825 are actually
   # shorter than that; try increasing max length or processing in chunks
 
+attacks.text_fooler:
+  n_neighbors_considered: 50
+  n_neighbors_precomputed: 200
+  neighbors_save_path: attacks/text_fooler/neighbors.json
