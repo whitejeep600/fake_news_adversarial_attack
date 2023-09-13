@@ -133,7 +133,7 @@ class TextFoolerAttacker(AdversarialAttacker):
 
             high_similarity_candidate_indices = np.where(
                 similarities > self.similarity_threshold
-            )
+            )[0]
 
             if len(high_similarity_candidate_indices) == 0:
                 continue
