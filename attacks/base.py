@@ -7,3 +7,7 @@ class AdversarialAttacker:
 
     def generate_adversarial_example(self, text: str, model: FakeNewsDetector) -> str:
         raise NotImplementedError
+
+    @classmethod
+    def from_config(cls, config: dict) -> "AdversarialAttacker":
+        raise NotImplementedError

@@ -1,3 +1,18 @@
+import torch
+from sentence_transformers import SentenceTransformer
+
+
+class SimilarityEvaluator:
+    def __init__(self, model_name: str):
+        self.model = SentenceTransformer(model_name)
+
+    def evaluate(self, text1: str, text2: str) -> float:
+        embeddings = [
+            self.model.encode(text, convert_to_tensor=True) for text in [text1, text2]
+        ]
+        return torch.cosine_similarity(embeddings[0], embeddings[1]).item()
+
+
 class AttackSingleSampleMetrics:
     def __init__(
         self, original_label: bool, label_after_attack: bool, semantic_similarity: float

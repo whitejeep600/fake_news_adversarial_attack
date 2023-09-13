@@ -19,7 +19,7 @@ class FakeNewsDetector(torch.nn.Module):
         )
         input_ids = tokenized_text["input_ids"].to(self.device)
         attention_mask = tokenized_text["attention_mask"].to(self.device)
-        return self(input_ids, attention_mask)
+        return self(input_ids, attention_mask).flatten()
 
     def get_prediction(self, text: str):
         return torch.argmax(self.get_logits(text)).item()

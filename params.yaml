@@ -27,4 +27,4 @@ models.baseline:
 attacks.text_fooler:
   n_neighbors_considered: 50
   n_neighbors_precomputed: 200
-  neighbors_save_path: attacks/text_fooler/neighbors.json
+  neighbors_path: attacks/text_fooler/neighbors.json

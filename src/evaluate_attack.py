@@ -3,7 +3,6 @@ from typing import Type
 
 import torch
 import yaml
-from sentence_transformers import SentenceTransformer
 from tqdm import tqdm
 
 from attacks.base import AdversarialAttacker
@@ -11,7 +10,8 @@ from attacks.text_fooler.text_fooler import TextFoolerAttacker
 from models.base import FakeNewsDetector
 from models.baseline.dataset import FakeNewsDataset
 from models.baseline.model import BaselineBert
-from src.metrics import AttackAggregateMetrics, AttackSingleSampleMetrics
+from src.metrics import AttackAggregateMetrics, AttackSingleSampleMetrics, \
+    SimilarityEvaluator
 from src.torch_utils import get_available_torch_device
 
 ATTACKERS_DICT: dict[str, Type[AdversarialAttacker]] = {
@@ -19,17 +19,6 @@ ATTACKERS_DICT: dict[str, Type[AdversarialAttacker]] = {
 }
 
 MODELS_DICT: dict[str, Type[FakeNewsDetector]] = {"baseline": BaselineBert}
-
-
-class SimilarityEvaluator:
-    def __init__(self, model_name: str):
-        self.model = SentenceTransformer(model_name)
-
-    def evaluate(self, text1: str, text2: str) -> float:
-        embeddings = [
-            self.model.encode(text, convert_to_tensor=True) for text in [text1, text2]
-        ]
-        return torch.cosine_similarity(embeddings[0], embeddings[1]).item()
 
 
 # todo code structure probably different for easy experiments but let's develop
@@ -52,7 +41,7 @@ def main(
     if model_class not in MODELS_DICT.keys():
         raise ValueError("Unsupported model name")
     device = get_available_torch_device()
-    attacker = ATTACKERS_DICT[attacker_name](**attacker_config)
+    attacker = ATTACKERS_DICT[attacker_name].from_config(attacker_config)
     model_config["device"] = device
     model = MODELS_DICT[model_class](**model_config)
     model.load_state_dict(torch.load(weights_path, map_location=torch.device(device)))

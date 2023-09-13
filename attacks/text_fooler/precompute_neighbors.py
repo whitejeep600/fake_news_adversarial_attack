@@ -12,7 +12,7 @@ def get_embedding(word, model, tokenizer):
     return tensor.detach().numpy()
 
 
-def main(n_neighbors_precomputed: int, neighbors_save_path: Path):
+def main(n_neighbors_precomputed: int, neighbors_path: Path):
     model_name = "prajjwal1/bert-tiny"
     model = BertModel.from_pretrained(model_name)
     tokenizer = AutoTokenizer.from_pretrained(model_name)
@@ -36,12 +36,12 @@ def main(n_neighbors_precomputed: int, neighbors_save_path: Path):
         for i in range(len(all_words))
     }
 
-    with open(neighbors_save_path, "w") as f:
+    with open(neighbors_path, "w") as f:
         f.write(json.dumps(neighbors, indent=2))
 
 
 if __name__ == "__main__":
     text_fooler_params = yaml.safe_load(open("params.yaml"))["attacks.text_fooler"]
     n_neighbors_precomputed = int(text_fooler_params["n_neighbors_precomputed"])
-    neighbors_save_path = Path(text_fooler_params["neighbors_save_path"])
-    main(n_neighbors_precomputed, neighbors_save_path)
+    neighbors_path = Path(text_fooler_params["neighbors_path"])
+    main(n_neighbors_precomputed, neighbors_path)
