@@ -33,6 +33,8 @@ class TextFoolerAttacker(AdversarialAttacker):
             tokenize_pretokenized=True,
         )
         if not neighbors_path.exists():
+            print(f"Precomputed word neighbors not found. They will be computed now"
+                  f" and cached under {neighbors_path}")
             precompute_neighbors(n_neighbors_precomputed, neighbors_path)
 
     @classmethod
@@ -62,7 +64,7 @@ class TextFoolerAttacker(AdversarialAttacker):
                         + new_logits[new_label]
                         - original_logits[new_label]
                 )
-            scores.append(score)
+            scores.append(float(score))
         return scores
 
     def get_pos_tags(self, sentence: str):

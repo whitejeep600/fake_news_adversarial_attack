@@ -1,3 +1,4 @@
+import re
 from pathlib import Path
 
 import pandas as pd
@@ -60,8 +61,14 @@ class FakeNewsDataset(Dataset):
         }
 
     def iterate_untokenized(self):
+        # Truncating the text to self.max_length  words does not strictly ensure
+        # that there will be at most max_length tokens after tokenization, but it's
+        # good enough (saves some runtime and isn't expected to cause any errors
+        # during an attack)
         for i in range(len(self)):
+            split_text = re.split(r'(\s+)', self.df.iloc[i, :]["text"])
+            truncated_text = "".join(split_text[:2 * self.max_length - 1])
             yield {
-                "text": self.df.iloc[i, :]["text"],
+                "text": truncated_text,
                 "label": self.df.iloc[i, :]["label"],
             }
