@@ -135,8 +135,8 @@ class TextFoolerAttacker(AdversarialAttacker):
                 similarities > self.similarity_threshold
             )
 
-            if not high_similarity_candidate_indices:
-                break
+            if len(high_similarity_candidate_indices) == 0:
+                continue
 
             candidates = [candidates[i] for i in high_similarity_candidate_indices]
             confidences = confidences[high_similarity_candidate_indices]
