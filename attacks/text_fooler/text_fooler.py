@@ -14,12 +14,12 @@ from src.metrics import SimilarityEvaluator
 
 class TextFoolerAttacker(AdversarialAttacker):
     def __init__(
-            self,
-            similarity_threshold: float,
-            similarity_evaluator_name: str,
-            neighbors_path: Path,
-            n_neighbors_considered: int,
-            n_neighbors_precomputed: int,
+        self,
+        similarity_threshold: float,
+        similarity_evaluator_name: str,
+        neighbors_path: Path,
+        n_neighbors_considered: int,
+        n_neighbors_precomputed: int,
     ):
         super().__init__()
         self.similarity_threshold = similarity_threshold
@@ -33,8 +33,10 @@ class TextFoolerAttacker(AdversarialAttacker):
             tokenize_pretokenized=True,
         )
         if not neighbors_path.exists():
-            print(f"Precomputed word neighbors not found. They will be computed now"
-                  f" and cached under {neighbors_path}")
+            print(
+                f"Precomputed word neighbors not found. They will be computed now"
+                f" and cached under {neighbors_path}"
+            )
             precompute_neighbors(n_neighbors_precomputed, neighbors_path)
 
     @classmethod
@@ -52,17 +54,17 @@ class TextFoolerAttacker(AdversarialAttacker):
         original_label = torch.argmax(original_logits).item()
         scores: list[float] = []
         for i in range(len(words)):
-            remaining_words = words[:i] + words[i + 1:]
+            remaining_words = words[:i] + words[i + 1 :]
             new_logits = model.get_logits("".join(remaining_words))
             new_label = torch.argmax(new_logits).item()
             if new_label != original_label:
                 score = original_logits[original_label] - new_logits[original_label]
             else:
                 score = (
-                        original_logits[original_label]
-                        - new_logits[original_label]
-                        + new_logits[new_label]
-                        - original_logits[new_label]
+                    original_logits[original_label]
+                    - new_logits[original_label]
+                    + new_logits[new_label]
+                    - original_logits[new_label]
                 )
             scores.append(float(score))
         return scores
@@ -71,11 +73,11 @@ class TextFoolerAttacker(AdversarialAttacker):
         return [word.upos for word in self.pos_tagger(sentence).sentences[0].words]
 
     def get_confidence_and_similarity_scores(
-            self,
-            sentence_words: list[str],
-            replaced_index: int,
-            candidates: list[str],
-            model: FakeNewsDetector,
+        self,
+        sentence_words: list[str],
+        replaced_index: int,
+        candidates: list[str],
+        model: FakeNewsDetector,
     ) -> tuple[np.ndarray, np.ndarray]:
         original_sentence = " ".join(sentence_words)
         original_logits = model.get_logits(original_sentence)
@@ -91,11 +93,11 @@ class TextFoolerAttacker(AdversarialAttacker):
             substituted_sentence = " ".join(sentence_words)
             substituted_logits = model.get_logits(substituted_sentence)
 
-            influence_score = substituted_logits[original_label]
+            influence_score = substituted_logits[original_label].item()
 
             substitute_pos = self.get_pos_tags(substituted_sentence)
             if substitute_pos != original_pos:
-                similarity_score = 0.
+                similarity_score = 0.0
             else:
                 similarity_score = self.similarity_evaluator.evaluate(
                     original_sentence, substituted_sentence
@@ -116,8 +118,8 @@ class TextFoolerAttacker(AdversarialAttacker):
         importance_indices = np.argsort(-1 * importance_scores)
         for i in importance_indices:
             if (
-                    self.similarity_evaluator.evaluate(text, " ".join(words))
-                    > self.similarity_threshold
+                self.similarity_evaluator.evaluate(text, " ".join(words))
+                < self.similarity_threshold
             ):
                 break
 

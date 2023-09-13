@@ -10,8 +10,11 @@ from attacks.text_fooler.text_fooler import TextFoolerAttacker
 from models.base import FakeNewsDetector
 from models.baseline.dataset import FakeNewsDataset
 from models.baseline.model import BaselineBert
-from src.metrics import AttackAggregateMetrics, AttackSingleSampleMetrics, \
-    SimilarityEvaluator
+from src.metrics import (
+    AttackAggregateMetrics,
+    AttackSingleSampleMetrics,
+    SimilarityEvaluator,
+)
 from src.torch_utils import get_available_torch_device
 
 ATTACKERS_DICT: dict[str, Type[AdversarialAttacker]] = {
