@@ -2,7 +2,6 @@ import json
 from pathlib import Path
 
 import numpy as np
-import stanza
 import torch
 from nltk.tokenize import word_tokenize
 
@@ -26,12 +25,6 @@ class TextFoolerAttacker(AdversarialAttacker):
         self.similarity_evaluator = SimilarityEvaluator(similarity_evaluator_name)
         self.neighbors_path = neighbors_path
         self.n_neighbors_considered = n_neighbors_considered
-        self.pos_tagger = stanza.Pipeline(
-            "en",
-            processors="tokenize,mwt,pos",
-            use_gpu=True,
-            tokenize_pretokenized=True,
-        )
         if not neighbors_path.exists():
             print(
                 f"Precomputed word neighbors not found. They will be computed now"
@@ -69,9 +62,6 @@ class TextFoolerAttacker(AdversarialAttacker):
             scores.append(float(score))
         return scores
 
-    def get_pos_tags(self, sentence: str):
-        return [word.upos for word in self.pos_tagger(sentence).sentences[0].words]
-
     def get_confidence_and_similarity_scores(
         self,
         sentence_words: list[str],
@@ -82,9 +72,6 @@ class TextFoolerAttacker(AdversarialAttacker):
         original_sentence = " ".join(sentence_words)
         original_logits = model.get_logits(original_sentence)
         original_label = torch.argmax(original_logits).item()
-        original_pos = self.get_pos_tags(original_sentence)
-        assert (len(original_pos)) == len(sentence_words)
-
         influence_scores: list[float] = []
         similarity_scores: list[float] = []
 
@@ -95,13 +82,9 @@ class TextFoolerAttacker(AdversarialAttacker):
 
             influence_score = substituted_logits[original_label].item()
 
-            substitute_pos = self.get_pos_tags(substituted_sentence)
-            if substitute_pos != original_pos:
-                similarity_score = 0.0
-            else:
-                similarity_score = self.similarity_evaluator.evaluate(
-                    original_sentence, substituted_sentence
-                )
+            similarity_score = self.similarity_evaluator.evaluate(
+                original_sentence, substituted_sentence
+            )
             influence_scores.append(influence_score)
             similarity_scores.append(similarity_score)
 
@@ -126,7 +109,7 @@ class TextFoolerAttacker(AdversarialAttacker):
             if words[i] not in neighbors:
                 continue
 
-            candidates = words[i][: self.n_neighbors_considered]
+            candidates = neighbors[words[i]][: self.n_neighbors_considered]
             confidences, similarities = self.get_confidence_and_similarity_scores(
                 words, i, candidates, model
             )

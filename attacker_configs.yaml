@@ -2,5 +2,5 @@ text_fooler:
   similarity_evaluator_name: flax-sentence-embeddings/all_datasets_v4_MiniLM-L6
   similarity_threshold: 0.7
   neighbors_path: attacks/text_fooler/neighbors.json
-  n_neighbors_considered: 50
+  n_neighbors_considered: 30
   n_neighbors_precomputed: 200
