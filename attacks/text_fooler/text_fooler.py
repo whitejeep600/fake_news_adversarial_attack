@@ -79,6 +79,7 @@ class TextFoolerAttacker(AdversarialAttacker):
         model: FakeNewsDetector,
         original_label: int,
     ) -> np.ndarray:
+        sentence_words = copy(sentence_words)
         confidence_scores: list[float] = []
         for candidate in candidates:
             sentence_words[replaced_index] = candidate
