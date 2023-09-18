@@ -158,13 +158,13 @@ class TextFoolerAttacker(AdversarialAttacker):
             else:
                 lowest_confidence_index = confidences.argmin()
                 best_candidate = candidates[lowest_confidence_index]
-                words[i] = best_candidate
                 print(
                     f"Replacing {words[i]} with {best_candidate}, fragment {' '.join(words[i-3:i+3])}\n"
                 )
                 print(
                     f"Confidence now {confidences[lowest_confidence_index]}, similarity {similarities[lowest_confidence_index]}"
                 )
+                words[i] = best_candidate
 
         self.similarity_evaluator.reset_reference_sentence()
         return " ".join(words)
