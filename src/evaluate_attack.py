@@ -31,13 +31,13 @@ MODELS_DICT: dict[str, Type[FakeNewsDetector]] = {"baseline": BaselineBert}
 # todo maybe move some of the dataset management to the model, in particular make
 #  sure the same data is loaded from the source .csv (no author and so on)
 def main(
-    eval_split_path: Path,
-    model_class: str,
-    model_config: dict,
-    weights_path: Path,
-    attacker_name: str,
-    attacker_config: dict,
-    similarity_evaluator_name: str,
+        eval_split_path: Path,
+        model_class: str,
+        model_config: dict,
+        weights_path: Path,
+        attacker_name: str,
+        attacker_config: dict,
+        similarity_evaluator_name: str,
 ):
     if attacker_name not in ATTACKERS_DICT.keys():
         raise ValueError("Unsupported attacker name")
@@ -56,9 +56,9 @@ def main(
     n_skipped = 0
     metrics: list[AttackSingleSampleMetrics] = []
     for sample in tqdm(
-        eval_dataset.iterate_untokenized(),
-        total=len(eval_dataset),
-        desc="Running adversarial attack evaluation",
+            eval_dataset.iterate_untokenized(),
+            total=len(eval_dataset),
+            desc="Running adversarial attack evaluation",
     ):
         original_text = sample["text"]
         label = sample["label"]
@@ -78,6 +78,11 @@ def main(
                 label, adversarial_prediction, semantic_similarity
             )
         )
+        print(original_text)
+        print(adversarial_example)
+        print(f"label {label}, adversarial prediction:"
+              f" {adversarial_prediction}, similarity"
+              f" {semantic_similarity}")
 
     aggregate_metrics = AttackAggregateMetrics.from_aggregation(metrics, n_skipped)
     aggregate_metrics.print_summary()
