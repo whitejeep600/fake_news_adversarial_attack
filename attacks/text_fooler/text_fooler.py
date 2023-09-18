@@ -53,11 +53,14 @@ class TextFoolerAttacker(AdversarialAttacker):
         original_label = int(torch.argmax(original_probabilities).item())
         scores: list[float] = []
         for i in range(len(words)):
-            remaining_words = words[:i] + words[i + 1:]
+            remaining_words = words[:i] + words[i + 1 :]
             new_probabilities = model.get_probabilities(" ".join(remaining_words))
             new_label = int(torch.argmax(new_probabilities).item())
             if new_label == original_label:
-                score = original_probabilities[original_label] - new_probabilities[original_label]
+                score = (
+                    original_probabilities[original_label]
+                    - new_probabilities[original_label]
+                )
             else:
                 score = (
                     original_probabilities[original_label]
@@ -74,16 +77,14 @@ class TextFoolerAttacker(AdversarialAttacker):
         replaced_index: int,
         candidates: list[str],
         model: FakeNewsDetector,
-        original_label: int
+        original_label: int,
     ) -> np.ndarray:
         confidence_scores: list[float] = []
         for candidate in candidates:
             sentence_words[replaced_index] = candidate
             substituted_sentence = " ".join(sentence_words)
             substituted_probabilities = model.get_probabilities(substituted_sentence)
-
             confidence_score = substituted_probabilities[original_label].item()
-
             confidence_scores.append(confidence_score)
 
         return np.array(confidence_scores)
@@ -156,7 +157,14 @@ class TextFoolerAttacker(AdversarialAttacker):
                 break
             else:
                 lowest_confidence_index = confidences.argmin()
-                words[i] = candidates[lowest_confidence_index]
+                best_candidate = candidates[lowest_confidence_index]
+                words[i] = best_candidate
+                print(
+                    f"Replacing {words[i]} with {best_candidate}, fragment {' '.join(words[i-3:i+3])}\n"
+                )
+                print(
+                    f"Confidence now {confidences[lowest_confidence_index]}, similarity {similarities[lowest_confidence_index]}"
+                )
 
         self.similarity_evaluator.reset_reference_sentence()
         return " ".join(words)

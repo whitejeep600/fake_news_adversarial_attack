@@ -79,8 +79,8 @@ def main(
                 label, adversarial_prediction, semantic_similarity
             )
         )
-        print(original_text)
-        print(adversarial_example)
+        print(original_text + "\n")
+        print(adversarial_example + "\n")
         print(
             f"label {label}, adversarial prediction:"
             f" {adversarial_prediction}, similarity"
