@@ -1,10 +1,25 @@
 import torch
 from sentence_transformers import SentenceTransformer
+from torch import Tensor
 
 
 class SimilarityEvaluator:
-    def __init__(self, model_name: str):
+    def __init__(self, model_name: str, device: str):
         self.model = SentenceTransformer(model_name)
+        self.model.to(device)
+        self.reference_encodings: Tensor | None = None
+
+    def set_reference_sentence(self, text: str) -> None:
+        self.reference_encodings = self.model.encode(text, convert_to_tensor=True)
+
+    def reset_reference_sentence(self):
+        self.reference_encodings = None
+
+    def compare_to_reference(self, text):
+        text_encoding = self.model.encode(text, convert_to_tensor=True)
+        return torch.cosine_similarity(
+            self.reference_encodings, text_encoding, dim=0
+        ).item()
 
     def evaluate(self, text1: str, text2: str) -> float:
         embeddings = [
@@ -15,7 +30,7 @@ class SimilarityEvaluator:
 
 class AttackSingleSampleMetrics:
     def __init__(
-        self, original_label: bool, label_after_attack: bool, semantic_similarity: float
+        self, original_label: int, label_after_attack: int, semantic_similarity: float
     ):
         self.original_label = original_label
         self.label_after_attack = label_after_attack

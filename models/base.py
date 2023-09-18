@@ -1,4 +1,5 @@
 import torch
+from torch import Tensor
 from transformers import PreTrainedTokenizer
 
 
@@ -9,7 +10,7 @@ class FakeNewsDetector(torch.nn.Module):
         self.max_length = max_length
         self.device = device
 
-    def get_logits(self, text: str):
+    def get_logits(self, text: str) -> Tensor:
         tokenized_text = self.tokenizer(
             text,
             return_tensors="pt",
@@ -21,5 +22,5 @@ class FakeNewsDetector(torch.nn.Module):
         attention_mask = tokenized_text["attention_mask"].to(self.device)
         return self(input_ids, attention_mask).flatten()
 
-    def get_prediction(self, text: str):
-        return torch.argmax(self.get_logits(text)).item()
+    def get_prediction(self, text: str) -> int:
+        return int(torch.argmax(self.get_logits(text)).item())
