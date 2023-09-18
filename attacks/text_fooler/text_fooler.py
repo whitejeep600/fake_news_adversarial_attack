@@ -1,4 +1,5 @@
 import json
+from copy import copy
 from pathlib import Path
 
 import numpy as np
@@ -48,21 +49,21 @@ class TextFoolerAttacker(AdversarialAttacker):
         )
 
     def get_importance_scores(self, words: list[str], model: FakeNewsDetector):
-        original_logits = model.get_logits("".join(words))
-        original_label = int(torch.argmax(original_logits).item())
+        original_probabilities = model.get_probabilities(" ".join(words))
+        original_label = int(torch.argmax(original_probabilities).item())
         scores: list[float] = []
         for i in range(len(words)):
-            remaining_words = words[:i] + words[i + 1 :]
-            new_logits = model.get_logits("".join(remaining_words))
-            new_label = int(torch.argmax(new_logits).item())
-            if new_label != original_label:
-                score = original_logits[original_label] - new_logits[original_label]
+            remaining_words = words[:i] + words[i + 1:]
+            new_probabilities = model.get_probabilities(" ".join(remaining_words))
+            new_label = int(torch.argmax(new_probabilities).item())
+            if new_label == original_label:
+                score = original_probabilities[original_label] - new_probabilities[original_label]
             else:
                 score = (
-                    original_logits[original_label]
-                    - new_logits[original_label]
-                    + new_logits[new_label]
-                    - original_logits[new_label]
+                    original_probabilities[original_label]
+                    - new_probabilities[original_label]
+                    + new_probabilities[new_label]
+                    - original_probabilities[new_label]
                 )
             scores.append(float(score))
         return scores
@@ -73,16 +74,15 @@ class TextFoolerAttacker(AdversarialAttacker):
         replaced_index: int,
         candidates: list[str],
         model: FakeNewsDetector,
-        original_logits: Tensor,
+        original_label: int
     ) -> np.ndarray:
-        original_label = int(torch.argmax(original_logits).item())
         confidence_scores: list[float] = []
         for candidate in candidates:
             sentence_words[replaced_index] = candidate
             substituted_sentence = " ".join(sentence_words)
-            substituted_logits = model.get_logits(substituted_sentence)
+            substituted_probabilities = model.get_probabilities(substituted_sentence)
 
-            confidence_score = substituted_logits[original_label].item()
+            confidence_score = substituted_probabilities[original_label].item()
 
             confidence_scores.append(confidence_score)
 
@@ -94,6 +94,7 @@ class TextFoolerAttacker(AdversarialAttacker):
         replaced_index: int,
         candidates: list[str],
     ) -> np.ndarray:
+        sentence_words = copy(sentence_words)
         similarity_scores: list[float] = []
 
         for candidate in candidates:
@@ -111,6 +112,8 @@ class TextFoolerAttacker(AdversarialAttacker):
         words = word_tokenize(text)
         importance_scores = np.array(self.get_importance_scores(words, model))
 
+        original_label = model.get_prediction(text)
+
         self.similarity_evaluator.set_reference_sentence(text)
 
         with open(self.neighbors_path) as f:
@@ -125,11 +128,10 @@ class TextFoolerAttacker(AdversarialAttacker):
             ):
                 break
 
-            if words[i] not in neighbors:
+            if words[i].lower() not in neighbors:
                 continue
 
-            candidates = neighbors[words[i]][: self.n_neighbors_considered]
-            original_logits = model.get_logits(text)
+            candidates = neighbors[words[i].lower()][: self.n_neighbors_considered]
 
             similarities = self.get_similarity_scores(words, i, candidates)
 
@@ -144,11 +146,11 @@ class TextFoolerAttacker(AdversarialAttacker):
             similarities = similarities[high_similarity_candidate_indices]
 
             confidences = self.get_confidence_scores(
-                words, i, candidates, model, original_logits
+                words, i, candidates, model, original_label
             )
 
             successful_candidate_indices = np.where(confidences < 0.5)[0]
-            if successful_candidate_indices:
+            if len(successful_candidate_indices):
                 highest_similarity_index = similarities.argmax()
                 words[i] = candidates[highest_similarity_index]
                 break
