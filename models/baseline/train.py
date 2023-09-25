@@ -164,7 +164,7 @@ if __name__ == "__main__":
     n_epochs = int(baseline_params["n_epochs"])
     lr = float(baseline_params["lr"])
     save_path = Path(baseline_params["save_path"])
-    model_config = yaml.safe_load(open("model_configs.yaml"))["baseline"]
+    model_config = yaml.safe_load(open("configs/model_configs.yaml"))["baseline"]
     main(
         train_split_path,
         eval_split_path,

@@ -95,11 +95,12 @@ if __name__ == "__main__":
     evaluation_params = yaml.safe_load(open("params.yaml"))["src.evaluate_attack"]
     eval_split_path = Path(evaluation_params["eval_split_path"])
     model_class = evaluation_params["model_class"]
-    model_config = yaml.safe_load(open("model_configs.yaml"))[model_class]
+    model_config = yaml.safe_load(open("configs/model_configs.yaml"))[model_class]
     weights_path = Path(evaluation_params["weights_path"])
     attacker_name = evaluation_params["attacker_name"]
     similarity_evaluator_name = evaluation_params["similarity_evaluator_name"]
-    attacker_config = yaml.safe_load(open("attacker_configs.yaml"))[attacker_name]
+    attacker_config = \
+        yaml.safe_load(open("configs/attacker_configs.yaml"))[attacker_name]
     if attacker_config is None:
         attacker_config = {}
     main(

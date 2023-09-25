@@ -66,7 +66,7 @@ class FakeNewsDataset(Dataset):
         # good enough (saves some runtime and isn't expected to cause any errors
         # during an attack)
         # for i in range(len(self)):
-        for i in range(5):
+        for i in range(20):
             split_text = re.split(r"(\s+)", self.df.iloc[i, :]["text"])
             truncated_text = "".join(split_text[: 2 * self.max_length - 1])
             yield {

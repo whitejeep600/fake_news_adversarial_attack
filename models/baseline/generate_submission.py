@@ -56,5 +56,5 @@ if __name__ == "__main__":
     test_split_path = Path(baseline_params["test_split_path"])
     batch_size = baseline_params["batch_size"]
     target_path = Path(baseline_params["submission_path"])
-    model_config = yaml.safe_load(open("model_configs.yaml"))["baseline"]
+    model_config = yaml.safe_load(open("configs/model_configs.yaml"))["baseline"]
     main(weights_path, test_split_path, batch_size, target_path, model_config)
