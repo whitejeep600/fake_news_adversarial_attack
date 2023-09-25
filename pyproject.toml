@@ -44,3 +44,7 @@ transformers = "*"
 sympy = "*"
 sentence_transformers = "*"
 truecolor = "*"
+shap = "*"
+h5py = "*"
+matplotlib = "*"
+

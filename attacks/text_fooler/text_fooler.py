@@ -5,7 +5,6 @@ from pathlib import Path
 import numpy as np
 import torch
 from nltk.tokenize import word_tokenize
-from torch import Tensor
 
 from attacks.base import AdversarialAttacker
 from attacks.text_fooler.precompute_neighbors import main as precompute_neighbors
@@ -161,12 +160,13 @@ class TextFoolerAttacker(AdversarialAttacker):
             else:
                 lowest_confidence_index = confidences.argmin()
                 best_candidate = candidates[lowest_confidence_index]
+                fragment = " ".join(words[i - 3 : i + 3])
                 print(
-                    f"Replacing {words[i]} with {best_candidate}, fragment {' '.join(words[i-3:i+3])}\n"
+                    f"Replacing {words[i]} with {best_candidate}, fragment {fragment}\n"
                 )
-                print(
-                    f"Confidence now {confidences[lowest_confidence_index]}, similarity {similarities[lowest_confidence_index]}"
-                )
+                confidence = confidences[lowest_confidence_index]
+                similarity = similarities[lowest_confidence_index]
+                print(f"Confidence now {confidence}, similarity {similarity}")
                 words[i] = best_candidate
 
         self.similarity_evaluator.reset_reference_sentence()

@@ -1,6 +1,6 @@
 import torch
 from torch import Tensor
-from transformers import PreTrainedTokenizer
+from transformers import Pipeline, PreTrainedTokenizer
 
 
 class FakeNewsDetector(torch.nn.Module):
@@ -28,3 +28,6 @@ class FakeNewsDetector(torch.nn.Module):
 
     def get_prediction(self, text: str) -> int:
         return int(torch.argmax(self.get_logits(text)).item())
+
+    def to_pipeline(self) -> Pipeline:
+        raise NotImplementedError

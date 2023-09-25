@@ -28,3 +28,6 @@ attacks.text_fooler:
   n_neighbors_considered: 50
   n_neighbors_precomputed: 200
   neighbors_path: attacks/text_fooler/neighbors.json
+
+visualizations.cls_attention:
+  plots_path: plots/shap

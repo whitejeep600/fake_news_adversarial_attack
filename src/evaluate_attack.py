@@ -99,8 +99,9 @@ if __name__ == "__main__":
     weights_path = Path(evaluation_params["weights_path"])
     attacker_name = evaluation_params["attacker_name"]
     similarity_evaluator_name = evaluation_params["similarity_evaluator_name"]
-    attacker_config = \
-        yaml.safe_load(open("configs/attacker_configs.yaml"))[attacker_name]
+    attacker_config = yaml.safe_load(open("configs/attacker_configs.yaml"))[
+        attacker_name
+    ]
     if attacker_config is None:
         attacker_config = {}
     main(
