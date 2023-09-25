@@ -19,7 +19,7 @@ class BaselineFakeNewsDetectorPipeline(Pipeline):
         tokenizer: PreTrainedTokenizer,
         linear_to_logits: Linear,
         max_length: int,
-        device: str,
+        torch_device: str,
         **kwargs,
     ):
         super().__init__(model, **kwargs)
@@ -27,7 +27,7 @@ class BaselineFakeNewsDetectorPipeline(Pipeline):
         self.tokenizer = tokenizer
         self.linear_to_logits = linear_to_logits
         self.max_length = max_length
-        self.device = device
+        self.torch_device = torch_device
 
     def _sanitize_parameters(self, **kwargs) -> tuple[dict, dict, dict]:
         return {}, {}, {}
@@ -43,8 +43,8 @@ class BaselineFakeNewsDetectorPipeline(Pipeline):
             truncation=True,
         )
         return {
-            "input_ids": tokenized_text["input_ids"].to(self.device),
-            "attention_mask": tokenized_text["attention_mask"].to(self.device),
+            "input_ids": tokenized_text["input_ids"].to(self.torch_device),
+            "attention_mask": tokenized_text["attention_mask"].to(self.torch_device),
         }
 
     def _forward(
@@ -89,9 +89,5 @@ class BaselineBert(FakeNewsDetector):
 
     def to_pipeline(self) -> Pipeline:
         return BaselineFakeNewsDetectorPipeline(
-            self.bert,
-            self.tokenizer,
-            self.linear_to_logits,
-            self.max_length,
-            self.device,
+            self.bert, self.tokenizer, self.linear_to_logits, self.max_length, self.device
         )
