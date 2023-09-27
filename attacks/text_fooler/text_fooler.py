@@ -25,9 +25,7 @@ class TextFoolerAttacker(AdversarialAttacker):
     ):
         super().__init__()
         self.similarity_threshold = similarity_threshold
-        self.similarity_evaluator = SimilarityEvaluator(
-            similarity_evaluator_name, device
-        )
+        self.similarity_evaluator = SimilarityEvaluator(similarity_evaluator_name, device)
         self.neighbors_path = neighbors_path
         self.n_neighbors_considered = n_neighbors_considered
         if not neighbors_path.exists():
@@ -57,10 +55,7 @@ class TextFoolerAttacker(AdversarialAttacker):
             new_probabilities = model.get_probabilities(" ".join(remaining_words))
             new_label = int(torch.argmax(new_probabilities).item())
             if new_label == original_label:
-                score = (
-                    original_probabilities[original_label]
-                    - new_probabilities[original_label]
-                )
+                score = original_probabilities[original_label] - new_probabilities[original_label]
             else:
                 score = (
                     original_probabilities[original_label]
@@ -103,16 +98,12 @@ class TextFoolerAttacker(AdversarialAttacker):
             sentence_tokens[replaced_index] = candidate
             substituted_sentence = "".join(sentence_tokens)
 
-            similarity_score = self.similarity_evaluator.compare_to_reference(
-                substituted_sentence
-            )
+            similarity_score = self.similarity_evaluator.compare_to_reference(substituted_sentence)
             similarity_scores.append(similarity_score)
 
         return np.array(similarity_scores)
 
-    def get_neighbors(
-        self, token: str, all_neighbors: dict[str, list[str]]
-    ) -> list[str] | None:
+    def get_neighbors(self, token: str, all_neighbors: dict[str, list[str]]) -> list[str] | None:
         if len(token) == 0:
             return None
         whitespace_split = re.split(r"(\S+)", token)
@@ -125,8 +116,7 @@ class TextFoolerAttacker(AdversarialAttacker):
             return None
         candidates = all_neighbors[base_token][: self.n_neighbors_considered]
         candidates = [
-            leading_whitespace + candidate + trailing_whitespace
-            for candidate in candidates
+            leading_whitespace + candidate + trailing_whitespace for candidate in candidates
         ]
         if is_uppercase:
             return [candidate.upper() for candidate in candidates]
@@ -143,13 +133,8 @@ class TextFoolerAttacker(AdversarialAttacker):
         tokens = shap_values.data[0]
         shap_values = shap_values.values[0]
 
-        # full text "".join(tokens)
-        # being the importance of ith word for label l
-        # add punctuation to synonyms hehe like . is for !
-
         # We want to attack the words that move the model's the most in the direction
-        # of the original label. Maybe experiment with summing the importance scores
-        # for both labels
+        # of the original label.
         importance_scores = shap_values[:, original_label]
 
         self.similarity_evaluator.set_reference_sentence(text)
@@ -172,9 +157,9 @@ class TextFoolerAttacker(AdversarialAttacker):
 
             similarities = self.get_similarity_scores(tokens, i, candidates)
 
-            high_similarity_candidate_indices = np.where(
-                similarities > self.similarity_threshold
-            )[0]
+            high_similarity_candidate_indices = np.where(similarities > self.similarity_threshold)[
+                0
+            ]
 
             if len(high_similarity_candidate_indices) == 0:
                 continue
@@ -182,9 +167,7 @@ class TextFoolerAttacker(AdversarialAttacker):
             candidates = [candidates[i] for i in high_similarity_candidate_indices]
             similarities = similarities[high_similarity_candidate_indices]
 
-            confidences = self.get_confidence_scores(
-                tokens, i, candidates, model, original_label
-            )
+            confidences = self.get_confidence_scores(tokens, i, candidates, model, original_label)
 
             successful_candidate_indices = np.where(confidences < 0.5)[0]
             if len(successful_candidate_indices):

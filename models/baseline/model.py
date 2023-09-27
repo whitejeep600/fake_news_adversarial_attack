@@ -32,9 +32,7 @@ class BaselineFakeNewsDetectorPipeline(Pipeline):
     def _sanitize_parameters(self, **kwargs) -> tuple[dict, dict, dict]:
         return {}, {}, {}
 
-    def preprocess(
-        self, input_: str, **preprocess_parameters: dict
-    ) -> dict[str, GenericTensor]:
+    def preprocess(self, input_: str, **preprocess_parameters: dict) -> dict[str, GenericTensor]:
         tokenized_text = self.tokenizer(
             input_,
             return_tensors="pt",
@@ -47,9 +45,7 @@ class BaselineFakeNewsDetectorPipeline(Pipeline):
             "attention_mask": tokenized_text["attention_mask"].to(self.torch_device),
         }
 
-    def _forward(
-        self, model_inputs: dict[str, GenericTensor], **forward_parameters: dict
-    ) -> dict:
+    def _forward(self, model_inputs: dict[str, GenericTensor], **forward_parameters: dict) -> dict:
         outputs = self.model(
             input_ids=model_inputs["input_ids"].to(self.torch_device),
             attention_mask=model_inputs["attention_mask"].to(self.torch_device),
@@ -58,9 +54,7 @@ class BaselineFakeNewsDetectorPipeline(Pipeline):
         logits = self.linear_to_logits(pooled)
         return {"logits": logits}
 
-    def postprocess(
-        self, model_outputs: dict, **postprocess_parameters: dict
-    ) -> list[dict]:
+    def postprocess(self, model_outputs: dict, **postprocess_parameters: dict) -> list[dict]:
         probabilities = model_outputs["logits"].softmax(-1)
         return [
             {"label": "LABEL_0", "score": probabilities[0, 0].item()},
@@ -77,13 +71,9 @@ class BaselineBert(FakeNewsDetector):
         self.device = device
         self.to(device)
 
-    def forward(
-        self, input_ids: torch.Tensor, attention_mask: torch.Tensor
-    ) -> torch.Tensor:
+    def forward(self, input_ids: torch.Tensor, attention_mask: torch.Tensor) -> torch.Tensor:
         outputs = self.bert(input_ids=input_ids, attention_mask=attention_mask)
-        pooled = (
-            outputs.pooler_output
-        )  # in line with Huggingface's BertForSequenceClassification
+        pooled = outputs.pooler_output  # in line with Huggingface's BertForSequenceClassification
         logits = self.linear_to_logits(pooled)
         return logits
 

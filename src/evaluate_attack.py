@@ -1,7 +1,7 @@
+import multiprocessing
 from pathlib import Path
 from typing import Type
 
-import pandas as pd
 import torch
 import yaml
 from tqdm import tqdm
@@ -15,6 +15,7 @@ from src.metrics import (
     AttackAggregateMetrics,
     AttackSingleSampleMetrics,
     SimilarityEvaluator,
+    sample_metrics_to_dataframe,
 )
 from src.torch_utils import get_available_torch_device
 
@@ -31,6 +32,71 @@ MODELS_DICT: dict[str, Type[FakeNewsDetector]] = {"baseline": BaselineBert}
 
 # todo maybe move some of the dataset management to the model, in particular make
 #  sure the same data is loaded from the source .csv (no author and so on)
+
+
+def process_sample(
+    sample: dict,
+    model: FakeNewsDetector,
+    attacker: AdversarialAttacker,
+    similarity_evaluator: SimilarityEvaluator,
+) -> AttackSingleSampleMetrics | None:
+    original_text = sample["text"]
+    label = sample["label"]
+    sample_id = sample["id"]
+    model_prediction = model.get_prediction(original_text)
+    if label != model_prediction:
+        return None
+    adversarial_example = attacker.generate_adversarial_example(original_text, model)
+    adversarial_probabilities = model.get_probabilities(adversarial_example)
+    adversarial_prediction = int(torch.argmax(adversarial_probabilities).item())
+    semantic_similarity = similarity_evaluator.evaluate(original_text, adversarial_example)
+    confidence = round(float(adversarial_probabilities[adversarial_prediction].item()), 2)
+    return AttackSingleSampleMetrics(
+        label,
+        adversarial_prediction,
+        round(semantic_similarity, 2),
+        confidence,
+        adversarial_example,
+        sample_id,
+    )
+
+
+class AdversarialAttackProcess(multiprocessing.Process):
+    def __init__(
+        self,
+        samples_q: multiprocessing.Queue,
+        metrics_q: multiprocessing.Queue,
+        model_class: str,
+        model_config: dict,
+        weights_path: Path,
+        attacker_name: str,
+        attacker_config: dict,
+        similarity_evaluator_name: str,
+        device: str,
+    ):
+        super().__init__()
+        attacker_config["device"] = device
+        model_config["device"] = device
+        self.samples_q = samples_q
+        self.metrics_q = metrics_q
+        self.attacker = ATTACKERS_DICT[attacker_name].from_config(attacker_config)
+        self.model = MODELS_DICT[model_class](**model_config)
+        self.model.load_state_dict(torch.load(weights_path, map_location=torch.device(device)))
+        self.model.to(device)
+        self.model.eval()
+        self.similarity_evaluator = SimilarityEvaluator(similarity_evaluator_name, device)
+
+    def run(self):
+        torch.set_num_threads(1)
+        self.model.eval()
+        while True:
+            sample = self.samples_q.get()
+            if sample is None:
+                break
+            metrics = process_sample(sample, self.model, self.attacker, self.similarity_evaluator)
+            self.metrics_q.put(metrics)
+
+
 def main(
     eval_split_path: Path,
     model_class: str,
@@ -39,80 +105,62 @@ def main(
     attacker_name: str,
     attacker_config: dict,
     similarity_evaluator_name: str,
-    results_save_path: Path
+    results_save_path: Path,
 ):
     if attacker_name not in ATTACKERS_DICT.keys():
         raise ValueError("Unsupported attacker name")
     if model_class not in MODELS_DICT.keys():
         raise ValueError("Unsupported model name")
-    device = get_available_torch_device()
-    attacker_config["device"] = device
-    attacker = ATTACKERS_DICT[attacker_name].from_config(attacker_config)
-    model_config["device"] = device
-    model = MODELS_DICT[model_class](**model_config)
-    model.load_state_dict(torch.load(weights_path, map_location=torch.device(device)))
-    model.to(device)
-    model.eval()
-    similarity_evaluator = SimilarityEvaluator(similarity_evaluator_name, device)
 
+    model_config["device"] = get_available_torch_device()
+    model = MODELS_DICT[model_class](**model_config)
     eval_dataset = FakeNewsDataset(eval_split_path, model.tokenizer, model.max_length)
-    n_skipped = 0
-    metrics: list[AttackSingleSampleMetrics] = []
-    generated_examples: list[str] = []
-    labels: list[int] = []
-    confidences: list[float] = []
-    similarities: list[float] = []
-    sample_ids: list[int] = []
-    succeeded: list[bool] = []
+
+    # None if sample skipped because the model's prediction was already wrong
+    metrics: list[AttackSingleSampleMetrics | None] = []
+
+    n_samples = len(eval_dataset)
+    num_workers = multiprocessing.cpu_count()
+    samples_q: multiprocessing.Queue = multiprocessing.Queue(maxsize=num_workers * 2)
+    metrics_q: multiprocessing.Queue = multiprocessing.Queue(maxsize=n_samples)
+    processes = [
+        AdversarialAttackProcess(
+            samples_q=samples_q,
+            metrics_q=metrics_q,
+            model_class=model_class,
+            model_config=model_config,
+            weights_path=weights_path,
+            attacker_name=attacker_name,
+            attacker_config=attacker_config,
+            similarity_evaluator_name=similarity_evaluator_name,
+            device=get_available_torch_device(),
+        )
+        for _ in range(num_workers)
+    ]
+    for proc in processes:
+        proc.start()
 
     for sample in tqdm(
         eval_dataset.iterate_untokenized(),
         total=len(eval_dataset),
         desc="Running adversarial attack evaluation",
     ):
-        original_text = sample["text"]
-        label = sample["label"]
-        sample_id = sample["id"]
-        model_prediction = model.get_prediction(original_text)
-        if label != model_prediction:
-            n_skipped += 1
-            continue
-        adversarial_example = attacker.generate_adversarial_example(
-            original_text, model
-        )
-        adversarial_probabilities = model.get_probabilities(adversarial_example)
-        adversarial_prediction = int(torch.argmax(adversarial_probabilities).item())
-        semantic_similarity = similarity_evaluator.evaluate(
-            original_text, adversarial_example
-        )
-        metrics.append(
-            AttackSingleSampleMetrics(
-                label, adversarial_prediction, semantic_similarity
-            )
-        )
-        # print(original_text + "\n")
-        # print(adversarial_example + "\n")
-        # print(
-        #     f"label {label}, adversarial prediction:"
-        #     f" {adversarial_prediction}, similarity"
-        #     f" {semantic_similarity}"
-        # )
-        generated_examples.append(adversarial_example)
-        labels.append(adversarial_prediction)
-        confidences.append(
-            round(float(adversarial_probabilities[adversarial_prediction].item()), 2)
-        )
-        similarities.append(round(semantic_similarity, 2))
-        sample_ids.append(sample_id)
-        succeeded.append(label != adversarial_prediction)
+        samples_q.put(sample)
 
-    print(f"n skipped samples: {n_skipped}")
-    aggregate_metrics = AttackAggregateMetrics.from_aggregation(metrics, n_skipped)
+    for _ in range(num_workers):
+        samples_q.put(None)
+
+    while not len(metrics) == n_samples:
+        next_metric = metrics_q.get()
+        metrics.append(next_metric)
+    for p in processes:
+        p.join()
+
+    non_skipped_metrics = [metric for metric in metrics if metric is not None]
+    n_skipped = len(metrics) - len(non_skipped_metrics)
+    aggregate_metrics = AttackAggregateMetrics.from_aggregation(non_skipped_metrics, n_skipped)
     aggregate_metrics.print_summary()
-    result_df = pd.DataFrame(
-        list(zip(sample_ids, generated_examples, labels, confidences, similarities, succeeded)),
-        columns=["id", "text", "label", "confidence", "similarity", "succeeded"]
-    )
+    result_df = sample_metrics_to_dataframe(non_skipped_metrics)
     result_df.to_csv(results_save_path)
 
 
@@ -125,9 +173,7 @@ if __name__ == "__main__":
     attacker_name = evaluation_params["attacker_name"]
     results_save_path = Path(evaluation_params["results_save_path"])
     similarity_evaluator_name = evaluation_params["similarity_evaluator_name"]
-    attacker_config = yaml.safe_load(open("configs/attacker_configs.yaml"))[
-        attacker_name
-    ]
+    attacker_config = yaml.safe_load(open("configs/attacker_configs.yaml"))[attacker_name]
     if attacker_config is None:
         attacker_config = {}
     main(
@@ -138,5 +184,5 @@ if __name__ == "__main__":
         attacker_name,
         attacker_config,
         similarity_evaluator_name,
-        results_save_path
+        results_save_path,
     )

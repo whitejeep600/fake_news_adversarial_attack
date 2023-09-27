@@ -45,13 +45,9 @@ def train_iteration(
     print(f"\naverage train loss: {avg_train_loss}")
 
 
-def calculate_stats(
-    predictions: torch.Tensor, labels: torch.Tensor
-) -> tuple[int, int, int, int]:
+def calculate_stats(predictions: torch.Tensor, labels: torch.Tensor) -> tuple[int, int, int, int]:
     tp = int(torch.sum(torch.logical_and(predictions, labels)).item())
-    fp = int(
-        torch.sum(torch.logical_and(predictions, torch.logical_not(labels))).item()
-    )
+    fp = int(torch.sum(torch.logical_and(predictions, torch.logical_not(labels))).item())
     tn = int(
         torch.sum(
             torch.logical_and(
@@ -60,9 +56,7 @@ def calculate_stats(
             )
         ).item()
     )
-    fn = int(
-        torch.sum(torch.logical_and(torch.logical_not(predictions), labels)).item()
-    )
+    fn = int(torch.sum(torch.logical_and(torch.logical_not(predictions), labels)).item())
     return tp, fp, tn, fn
 
 
@@ -97,11 +91,7 @@ def eval_iteration(
 
     precision = tp_total / (tp_total + fp_total) if tp_total + fp_total != 0 else None
     recall = tp_total / (tp_total + fn_total) if tp_total + fn_total != 0 else None
-    F1 = (
-        2 * (precision * recall) / (precision + recall)
-        if recall and precision
-        else None
-    )
+    F1 = 2 * (precision * recall) / (precision + recall) if recall and precision else None
     avg_eval_loss = sum(losses) / len(losses)
     print(
         f"eval stats: avg loss {avg_eval_loss}, precision: {precision}, "

@@ -44,9 +44,7 @@ def main(weights_path: Path, eval_split_path: Path):
 
         average_head_attentions = last_layer_attentions.mean(axis=0)
 
-        truncated_attentions = average_head_attentions[
-            :tokenized_length, :tokenized_length
-        ]
+        truncated_attentions = average_head_attentions[:tokenized_length, :tokenized_length]
 
         attentions_from_cls_token = truncated_attentions[0, :]
 
@@ -57,14 +55,10 @@ def main(weights_path: Path, eval_split_path: Path):
         importance_scores /= torch.max(importance_scores).item()
         red_intensities = [int(score * 255) for score in importance_scores]
 
-        tokenized_input = model.tokenizer.convert_ids_to_tokens(input_ids[0])[
-            :tokenized_length
-        ]
+        tokenized_input = model.tokenizer.convert_ids_to_tokens(input_ids[0])[:tokenized_length]
 
         colored_prints = [
-            truecolor.color_text(
-                tokenized_input[i], foreground=(red_intensities[i], 128, 128)
-            )
+            truecolor.color_text(tokenized_input[i], foreground=(red_intensities[i], 128, 128))
             for i in range(len(tokenized_input))
         ]
         colored = " ".join(colored_prints)

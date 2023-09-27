@@ -19,16 +19,12 @@ def concatenate_article_data(source_df: DataFrame):
 
 
 class FakeNewsDataset(Dataset):
-    def __init__(
-        self, dataset_csv_path: Path, tokenizer: PreTrainedTokenizer, max_length: int
-    ):
+    def __init__(self, dataset_csv_path: Path, tokenizer: PreTrainedTokenizer, max_length: int):
         super().__init__()
         source_df = pd.read_csv(dataset_csv_path)
 
         processed_df = pd.DataFrame()
-        processed_df["text"] = source_df.apply(
-            lambda x: concatenate_article_data(x), axis=1
-        )
+        processed_df["text"] = source_df.apply(lambda x: concatenate_article_data(x), axis=1)
         if "label" in source_df.columns:
             processed_df["label"] = source_df["label"]
         else:
@@ -65,8 +61,8 @@ class FakeNewsDataset(Dataset):
         # that there will be at most max_length tokens after tokenization, but it's
         # good enough (saves some runtime and isn't expected to cause any errors
         # during an attack)
-        for i in range(len(self)):
-        #for i in range(20):
+        # for i in range(len(self)):
+        for i in range(20):
             split_text = re.split(r"(\s+)", self.df.iloc[i, :]["text"])
             truncated_text = "".join(split_text[: 2 * self.max_length - 1])
             yield {

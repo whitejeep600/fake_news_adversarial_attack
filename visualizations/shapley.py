@@ -44,9 +44,7 @@ def main(model_class: str, weights_path: Path, eval_split_path: Path, plots_path
 
 if __name__ == "__main__":
     evaluation_params = yaml.safe_load(open("params.yaml"))["src.evaluate_attack"]
-    visualization_params = yaml.safe_load(open("params.yaml"))[
-        "visualizations.cls_attention"
-    ]
+    visualization_params = yaml.safe_load(open("params.yaml"))["visualizations.cls_attention"]
     model_class = evaluation_params["model_class"]
     weights_path = Path(evaluation_params["weights_path"])
     eval_split_path = Path(evaluation_params["eval_split_path"])

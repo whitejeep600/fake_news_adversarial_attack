@@ -30,9 +30,7 @@ def main(n_neighbors_precomputed: int, neighbors_path: Path):
     np.fill_diagonal(cosine_similarities, 0)
     similar_word_inds = np.argsort(-cosine_similarities)[:, :n_neighbors_precomputed]
     neighbors = {
-        all_words[i]: [
-            all_words[similar_word_inds[i][j]] for j in range(n_neighbors_precomputed)
-        ]
+        all_words[i]: [all_words[similar_word_inds[i][j]] for j in range(n_neighbors_precomputed)]
         for i in range(len(all_words))
     }
 
