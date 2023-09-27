@@ -89,5 +89,9 @@ class BaselineBert(FakeNewsDetector):
 
     def to_pipeline(self) -> Pipeline:
         return BaselineFakeNewsDetectorPipeline(
-            self.bert, self.tokenizer, self.linear_to_logits, self.max_length, self.device
+            self.bert,
+            self.tokenizer,
+            self.linear_to_logits,
+            self.max_length,
+            self.device,
         )

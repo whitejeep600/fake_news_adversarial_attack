@@ -1,10 +1,11 @@
 import json
+import re
 from copy import copy
 from pathlib import Path
 
 import numpy as np
+import shap
 import torch
-from nltk.tokenize import word_tokenize
 
 from attacks.base import AdversarialAttacker
 from attacks.text_fooler.precompute_neighbors import main as precompute_neighbors
@@ -72,17 +73,17 @@ class TextFoolerAttacker(AdversarialAttacker):
 
     def get_confidence_scores(
         self,
-        sentence_words: list[str],
+        sentence_tokens: list[str],
         replaced_index: int,
         candidates: list[str],
         model: FakeNewsDetector,
         original_label: int,
     ) -> np.ndarray:
-        sentence_words = copy(sentence_words)
+        sentence_tokens = copy(sentence_tokens)
         confidence_scores: list[float] = []
         for candidate in candidates:
-            sentence_words[replaced_index] = candidate
-            substituted_sentence = " ".join(sentence_words)
+            sentence_tokens[replaced_index] = candidate
+            substituted_sentence = "".join(sentence_tokens)
             substituted_probabilities = model.get_probabilities(substituted_sentence)
             confidence_score = substituted_probabilities[original_label].item()
             confidence_scores.append(confidence_score)
@@ -91,16 +92,16 @@ class TextFoolerAttacker(AdversarialAttacker):
 
     def get_similarity_scores(
         self,
-        sentence_words: list[str],
+        sentence_tokens: list[str],
         replaced_index: int,
         candidates: list[str],
     ) -> np.ndarray:
-        sentence_words = copy(sentence_words)
+        sentence_tokens = copy(sentence_tokens)
         similarity_scores: list[float] = []
 
         for candidate in candidates:
-            sentence_words[replaced_index] = candidate
-            substituted_sentence = " ".join(sentence_words)
+            sentence_tokens[replaced_index] = candidate
+            substituted_sentence = "".join(sentence_tokens)
 
             similarity_score = self.similarity_evaluator.compare_to_reference(
                 substituted_sentence
@@ -109,32 +110,67 @@ class TextFoolerAttacker(AdversarialAttacker):
 
         return np.array(similarity_scores)
 
-    def generate_adversarial_example(self, text: str, model: FakeNewsDetector) -> str:
-        words = word_tokenize(text)
-        importance_scores = np.array(self.get_importance_scores(words, model))
+    def get_neighbors(
+        self, token: str, all_neighbors: dict[str, list[str]]
+    ) -> list[str] | None:
+        if len(token) == 0:
+            return None
+        whitespace_split = re.split(r"(\S+)", token)
+        leading_whitespace = whitespace_split[0]
+        trailing_whitespace = whitespace_split[-1]
+        is_uppercase = token.isupper()
+        is_capitalized = token[0].isupper()
+        base_token = token.strip().lower()
+        if base_token not in all_neighbors:
+            return None
+        candidates = all_neighbors[base_token][: self.n_neighbors_considered]
+        candidates = [
+            leading_whitespace + candidate + trailing_whitespace
+            for candidate in candidates
+        ]
+        if is_uppercase:
+            return [candidate.upper() for candidate in candidates]
+        elif is_capitalized:
+            return [candidate[0].upper() + candidate[1:] for candidate in candidates]
+        else:
+            return candidates
 
+    def generate_adversarial_example(self, text: str, model: FakeNewsDetector) -> str:
         original_label = model.get_prediction(text)
+        pipeline = model.to_pipeline()
+        explainer = shap.Explainer(pipeline)
+        shap_values = explainer([text])
+        tokens = shap_values.data[0]
+        shap_values = shap_values.values[0]
+
+        # full text "".join(tokens)
+        # being the importance of ith word for label l
+        # add punctuation to synonyms hehe like . is for !
+
+        # We want to attack the words that move the model's the most in the direction
+        # of the original label. Maybe experiment with summing the importance scores
+        # for both labels
+        importance_scores = shap_values[:, original_label]
 
         self.similarity_evaluator.set_reference_sentence(text)
 
         with open(self.neighbors_path) as f:
-            neighbors = json.load(f)
+            all_neighbors = json.load(f)
 
         # reverse sorting
         importance_indices = np.argsort(-1 * importance_scores)
         for i in importance_indices:
             if (
-                self.similarity_evaluator.compare_to_reference(" ".join(words))
+                self.similarity_evaluator.compare_to_reference("".join(tokens))
                 < self.similarity_threshold
             ):
                 break
 
-            if words[i].lower() not in neighbors:
+            candidates = self.get_neighbors(tokens[i], all_neighbors)
+            if candidates is None:
                 continue
 
-            candidates = neighbors[words[i].lower()][: self.n_neighbors_considered]
-
-            similarities = self.get_similarity_scores(words, i, candidates)
+            similarities = self.get_similarity_scores(tokens, i, candidates)
 
             high_similarity_candidate_indices = np.where(
                 similarities > self.similarity_threshold
@@ -147,7 +183,7 @@ class TextFoolerAttacker(AdversarialAttacker):
             similarities = similarities[high_similarity_candidate_indices]
 
             confidences = self.get_confidence_scores(
-                words, i, candidates, model, original_label
+                tokens, i, candidates, model, original_label
             )
 
             successful_candidate_indices = np.where(confidences < 0.5)[0]
@@ -155,19 +191,17 @@ class TextFoolerAttacker(AdversarialAttacker):
                 similarities = similarities[successful_candidate_indices]
                 candidates = [candidates[i] for i in successful_candidate_indices]
                 highest_similarity_index = similarities.argmax()
-                words[i] = candidates[highest_similarity_index]
+                tokens[i] = candidates[highest_similarity_index]
                 break
             else:
                 lowest_confidence_index = confidences.argmin()
                 best_candidate = candidates[lowest_confidence_index]
-                fragment = " ".join(words[i - 3 : i + 3])
-                print(
-                    f"Replacing {words[i]} with {best_candidate}, fragment {fragment}\n"
-                )
+                frag = "".join(tokens[i - 3 : i + 3])
+                print(f"Replacing {tokens[i]} with {best_candidate}, fragment {frag}\n")
                 confidence = confidences[lowest_confidence_index]
                 similarity = similarities[lowest_confidence_index]
                 print(f"Confidence now {confidence}, similarity {similarity}")
-                words[i] = best_candidate
+                tokens[i] = best_candidate
 
         self.similarity_evaluator.reset_reference_sentence()
-        return " ".join(words)
+        return "".join(tokens)
