@@ -120,7 +120,7 @@ def main(
     metrics: list[AttackSingleSampleMetrics | None] = []
 
     n_samples = len(eval_dataset)
-    num_workers = multiprocessing.cpu_count()
+    num_workers = 2
     samples_q: multiprocessing.Queue = multiprocessing.Queue(maxsize=num_workers * 2)
     metrics_q: multiprocessing.Queue = multiprocessing.Queue(maxsize=n_samples)
     processes = [
@@ -140,19 +140,25 @@ def main(
     for proc in processes:
         proc.start()
 
-    for sample in tqdm(
-        eval_dataset.iterate_untokenized(),
-        total=len(eval_dataset),
-        desc="Running adversarial attack evaluation",
-    ):
-        samples_q.put(sample)
+    with tqdm(
+            total=len(eval_dataset),
+            desc="Running adversarial attack evaluation"
+    ) as progress_bar:
+        for sample in eval_dataset.iterate_untokenized():
+            samples_q.put(sample)
+            while not metrics_q.empty():
+                next_metric = metrics_q.get()
+                metrics.append(next_metric)
+                progress_bar.update()
 
-    for _ in range(num_workers):
-        samples_q.put(None)
+        for _ in range(num_workers):
+            samples_q.put(None)
 
-    while not len(metrics) == n_samples:
-        next_metric = metrics_q.get()
-        metrics.append(next_metric)
+        while not len(metrics) == n_samples:
+            next_metric = metrics_q.get()
+            metrics.append(next_metric)
+            progress_bar.update()
+
     for p in processes:
         p.join()
 
