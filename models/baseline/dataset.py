@@ -34,9 +34,11 @@ class FakeNewsDataset(Dataset):
         self.df = processed_df
         self.tokenizer = tokenizer
         self.max_length = max_length
+        self.max_samples = 20  # debug
 
     def __len__(self):
-        return len(self.df)
+        #return len(self.df)
+        return self.max_samples
 
     def __getitem__(self, i):
         text = self.df.iloc[i, :]["text"]
@@ -62,7 +64,7 @@ class FakeNewsDataset(Dataset):
         # good enough (saves some runtime and isn't expected to cause any errors
         # during an attack)
         # for i in range(len(self)):
-        for i in range(20):
+        for i in range(self.max_samples):
             split_text = re.split(r"(\s+)", self.df.iloc[i, :]["text"])
             truncated_text = "".join(split_text[: 2 * self.max_length - 1])
             yield {

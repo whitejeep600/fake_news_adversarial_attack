@@ -120,7 +120,7 @@ def main(
     metrics: list[AttackSingleSampleMetrics | None] = []
 
     n_samples = len(eval_dataset)
-    num_workers = 2
+    num_workers = multiprocessing.cpu_count()
     samples_q: multiprocessing.Queue = multiprocessing.Queue(maxsize=num_workers * 2)
     metrics_q: multiprocessing.Queue = multiprocessing.Queue(maxsize=n_samples)
     processes = [
