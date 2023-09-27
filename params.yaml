@@ -9,6 +9,7 @@ src.evaluate_attack:
   weights_path: checkpoints/baseline_6_IX.pt
   attacker_name: text_fooler
   similarity_evaluator_name: flax-sentence-embeddings/all_datasets_v4_MiniLM-L6
+  results_save_path: ./evaluation_results.csv
 
 models.baseline:
   bert_model_name: prajjwal1/bert-tiny  # todo probably not, just for testing
@@ -25,7 +26,7 @@ models.baseline:
   # shorter than that; try increasing max length or processing in chunks
 
 attacks.text_fooler:
-  n_neighbors_considered: 50
+  n_neighbors_considered: 20
   n_neighbors_precomputed: 200
   neighbors_path: attacks/text_fooler/neighbors.json
 

@@ -51,8 +51,8 @@ class BaselineFakeNewsDetectorPipeline(Pipeline):
         self, model_inputs: dict[str, GenericTensor], **forward_parameters: dict
     ) -> dict:
         outputs = self.model(
-            input_ids=model_inputs["input_ids"],
-            attention_mask=model_inputs["attention_mask"],
+            input_ids=model_inputs["input_ids"].to(self.torch_device),
+            attention_mask=model_inputs["attention_mask"].to(self.torch_device),
         )
         pooled = outputs.pooler_output
         logits = self.linear_to_logits(pooled)

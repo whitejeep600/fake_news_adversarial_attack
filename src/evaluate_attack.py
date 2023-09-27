@@ -1,6 +1,7 @@
 from pathlib import Path
 from typing import Type
 
+import pandas as pd
 import torch
 import yaml
 from tqdm import tqdm
@@ -38,6 +39,7 @@ def main(
     attacker_name: str,
     attacker_config: dict,
     similarity_evaluator_name: str,
+    results_save_path: Path
 ):
     if attacker_name not in ATTACKERS_DICT.keys():
         raise ValueError("Unsupported attacker name")
@@ -56,6 +58,13 @@ def main(
     eval_dataset = FakeNewsDataset(eval_split_path, model.tokenizer, model.max_length)
     n_skipped = 0
     metrics: list[AttackSingleSampleMetrics] = []
+    generated_examples: list[str] = []
+    labels: list[int] = []
+    confidences: list[float] = []
+    similarities: list[float] = []
+    sample_ids: list[int] = []
+    succeeded: list[bool] = []
+
     for sample in tqdm(
         eval_dataset.iterate_untokenized(),
         total=len(eval_dataset),
@@ -63,6 +72,7 @@ def main(
     ):
         original_text = sample["text"]
         label = sample["label"]
+        sample_id = sample["id"]
         model_prediction = model.get_prediction(original_text)
         if label != model_prediction:
             n_skipped += 1
@@ -70,7 +80,8 @@ def main(
         adversarial_example = attacker.generate_adversarial_example(
             original_text, model
         )
-        adversarial_prediction = model.get_prediction(adversarial_example)
+        adversarial_probabilities = model.get_probabilities(adversarial_example)
+        adversarial_prediction = int(torch.argmax(adversarial_probabilities).item())
         semantic_similarity = similarity_evaluator.evaluate(
             original_text, adversarial_example
         )
@@ -79,16 +90,30 @@ def main(
                 label, adversarial_prediction, semantic_similarity
             )
         )
-        print(original_text + "\n")
-        print(adversarial_example + "\n")
-        print(
-            f"label {label}, adversarial prediction:"
-            f" {adversarial_prediction}, similarity"
-            f" {semantic_similarity}"
+        # print(original_text + "\n")
+        # print(adversarial_example + "\n")
+        # print(
+        #     f"label {label}, adversarial prediction:"
+        #     f" {adversarial_prediction}, similarity"
+        #     f" {semantic_similarity}"
+        # )
+        generated_examples.append(adversarial_example)
+        labels.append(adversarial_prediction)
+        confidences.append(
+            round(float(adversarial_probabilities[adversarial_prediction].item()), 2)
         )
+        similarities.append(round(semantic_similarity, 2))
+        sample_ids.append(sample_id)
+        succeeded.append(label != adversarial_prediction)
 
+    print(f"n skipped samples: {n_skipped}")
     aggregate_metrics = AttackAggregateMetrics.from_aggregation(metrics, n_skipped)
     aggregate_metrics.print_summary()
+    result_df = pd.DataFrame(
+        list(zip(sample_ids, generated_examples, labels, confidences, similarities, succeeded)),
+        columns=["id", "text", "label", "confidence", "similarity", "succeeded"]
+    )
+    result_df.to_csv(results_save_path)
 
 
 if __name__ == "__main__":
@@ -98,6 +123,7 @@ if __name__ == "__main__":
     model_config = yaml.safe_load(open("configs/model_configs.yaml"))[model_class]
     weights_path = Path(evaluation_params["weights_path"])
     attacker_name = evaluation_params["attacker_name"]
+    results_save_path = Path(evaluation_params["results_save_path"])
     similarity_evaluator_name = evaluation_params["similarity_evaluator_name"]
     attacker_config = yaml.safe_load(open("configs/attacker_configs.yaml"))[
         attacker_name
@@ -112,4 +138,5 @@ if __name__ == "__main__":
         attacker_name,
         attacker_config,
         similarity_evaluator_name,
+        results_save_path
     )

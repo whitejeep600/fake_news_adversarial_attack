@@ -1,5 +1,5 @@
 [tool.black]
-line-length = 88
+line-length = 100
 target-version = ['py310']
 include = '\.py$'
 exclude = '''
@@ -10,7 +10,7 @@ exclude = '''
 
 [tool.isort]
 profile = "black"
-line_length = 88
+line_length = 100
 
 [tool.poetry]
 name = "adversarial"
