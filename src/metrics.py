@@ -2,7 +2,8 @@ from copy import copy
 
 import pandas as pd
 import torch
-from nltk.tokenize import sent_tokenize
+from nltk import pos_tag
+from nltk.tokenize import sent_tokenize, word_tokenize
 from sentence_transformers import SentenceTransformer
 from torch import Tensor
 
@@ -26,6 +27,13 @@ class SimilarityEvaluator:
         self.absolute_ind_to_sentence_ind: dict[int, tuple[int, int]] = {}
         self.sentences: list[list[str]] = []
         self.sentence_encodings: list[Tensor] = []
+        self.sentence_pos_tags: list[list[str]] = []
+
+    def get_pos_tags(self, sentence_tokens: list[str]) -> list[str]:
+        sentence = "".join(sentence_tokens)
+
+        # pos_tag returns (word, POS) tuples
+        return [t[1] for t in pos_tag(word_tokenize(sentence))]
 
     def set_reference_text(self, tokens: list[str]) -> None:
         self.tokens = tokens
@@ -38,9 +46,6 @@ class SimilarityEvaluator:
         sentences = [
             tokens[sentence_end_indices[i] + 1 : sentence_end_indices[i + 1] + 1]
             for i in range(len(sentence_end_indices) - 1)
-        ]
-        sentence_encodings = [
-            self.model.encode("".join(sentence), convert_to_tensor=True) for sentence in sentences
         ]
 
         absolute_ind_to_sentence_ind: dict[int, tuple[int, int]] = {}
@@ -55,20 +60,12 @@ class SimilarityEvaluator:
             sentence_ind, word_ind = absolute_ind_to_sentence_ind[i]
             assert sentences[sentence_ind][word_ind] == i_th_token
 
-        self.absolute_ind_to_sentence_ind = absolute_ind_to_sentence_ind
         self.sentences = sentences
-        self.sentence_encodings = sentence_encodings
-
-    def calculate_substitution_similarity(self, i: int, token: str) -> float:
-        sentence_ind, word_ind = self.absolute_ind_to_sentence_ind[i]
-        original_sentence = self.sentences[sentence_ind]
-        substituted_sentence = copy(original_sentence)
-        substituted_sentence[word_ind] = token
-        original_encoding = self.sentence_encodings[sentence_ind]
-        substituted_encoding = self.model.encode(
-            "".join(substituted_sentence), convert_to_tensor=True
-        )
-        return torch.cosine_similarity(original_encoding, substituted_encoding, dim=0).item()
+        self.absolute_ind_to_sentence_ind = absolute_ind_to_sentence_ind
+        self.sentence_encodings = [
+            self.model.encode("".join(sentence), convert_to_tensor=True) for sentence in sentences
+        ]
+        self.sentence_pos_tags = [self.get_pos_tags(sentence) for sentence in sentences]
 
     def reset_reference_text(self) -> None:
         self.tokens = []
@@ -76,6 +73,25 @@ class SimilarityEvaluator:
         self.absolute_ind_to_sentence_ind = {}
         self.sentences = []
         self.sentence_encodings = []
+        self.sentence_pos_tags = []
+
+    def calculate_substitution_similarity(self, i: int, token: str) -> float:
+        sentence_ind, word_ind = self.absolute_ind_to_sentence_ind[i]
+        original_sentence = self.sentences[sentence_ind]
+        substituted_sentence = copy(original_sentence)
+        substituted_sentence[word_ind] = token
+
+        original_pos_tags = self.sentence_pos_tags[sentence_ind]
+        substituted_pos_tags = self.get_pos_tags(substituted_sentence)
+
+        if original_pos_tags != substituted_pos_tags:
+            return 0
+
+        original_encoding = self.sentence_encodings[sentence_ind]
+        substituted_encoding = self.model.encode(
+            "".join(substituted_sentence), convert_to_tensor=True
+        )
+        return torch.cosine_similarity(original_encoding, substituted_encoding, dim=0).item()
 
     def compare_to_reference(self, text):
         text_encoding = self.model.encode(text, convert_to_tensor=True)
