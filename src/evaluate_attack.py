@@ -1,9 +1,9 @@
-import multiprocessing
 from pathlib import Path
 from typing import Type
 
 import torch
 import yaml
+from torch import multiprocessing
 from tqdm import tqdm
 
 from attacks.base import AdversarialAttacker
@@ -107,6 +107,7 @@ def main(
     similarity_evaluator_name: str,
     results_save_path: Path,
 ):
+    multiprocessing.set_start_method("spawn")
     if attacker_name not in ATTACKERS_DICT.keys():
         raise ValueError("Unsupported attacker name")
     if model_class not in MODELS_DICT.keys():
@@ -120,7 +121,7 @@ def main(
     metrics: list[AttackSingleSampleMetrics | None] = []
 
     n_samples = len(eval_dataset)
-    num_workers = multiprocessing.cpu_count()
+    num_workers = 1
     samples_q: multiprocessing.Queue = multiprocessing.Queue(maxsize=num_workers * 2)
     metrics_q: multiprocessing.Queue = multiprocessing.Queue(maxsize=n_samples)
     processes = [
@@ -141,8 +142,7 @@ def main(
         proc.start()
 
     with tqdm(
-            total=len(eval_dataset),
-            desc="Running adversarial attack evaluation"
+        total=len(eval_dataset), desc="Running adversarial attack evaluation"
     ) as progress_bar:
         for sample in eval_dataset.iterate_untokenized():
             samples_q.put(sample)

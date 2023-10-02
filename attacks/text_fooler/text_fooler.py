@@ -96,9 +96,10 @@ class TextFoolerAttacker(AdversarialAttacker):
 
         for candidate in candidates:
             sentence_tokens[replaced_index] = candidate
-            substituted_sentence = "".join(sentence_tokens)
 
-            similarity_score = self.similarity_evaluator.compare_to_reference(substituted_sentence)
+            similarity_score = self.similarity_evaluator.calculate_substitution_similarity(
+                replaced_index, candidate
+            )
             similarity_scores.append(similarity_score)
 
         return np.array(similarity_scores)
@@ -137,7 +138,7 @@ class TextFoolerAttacker(AdversarialAttacker):
         # of the original label.
         importance_scores = shap_values[:, original_label]
 
-        self.similarity_evaluator.set_reference_sentence(text)
+        self.similarity_evaluator.set_reference_text(tokens)
 
         with open(self.neighbors_path) as f:
             all_neighbors = json.load(f)
@@ -186,5 +187,5 @@ class TextFoolerAttacker(AdversarialAttacker):
                 # print(f"Confidence now {confidence}, similarity {similarity}")
                 tokens[i] = best_candidate
 
-        self.similarity_evaluator.reset_reference_sentence()
+        self.similarity_evaluator.reset_reference_text()
         return "".join(tokens)

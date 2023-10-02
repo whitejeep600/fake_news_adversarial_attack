@@ -37,7 +37,7 @@ class FakeNewsDataset(Dataset):
         self.max_samples = 20  # debug
 
     def __len__(self):
-        #return len(self.df)
+        # return len(self.df)
         return self.max_samples
 
     def __getitem__(self, i):

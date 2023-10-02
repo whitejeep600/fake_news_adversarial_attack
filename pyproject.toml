@@ -47,4 +47,5 @@ truecolor = "*"
 shap = "*"
 h5py = "*"
 matplotlib = "*"
+nltk = "*"
 
