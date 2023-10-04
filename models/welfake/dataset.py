@@ -11,14 +11,14 @@ from transformers import PreTrainedTokenizer
 def concatenate_article_data(source_df: DataFrame):
     # These could probably be new special tokens instead, but those wouldn't have
     # any pretrained meaning associated with them, while the words below do.
-    title, author, text = [str(source_df[key]) for key in ["title", "author", "text"]]
+    title, text = [str(source_df[key]) for key in ["title", "text"]]
 
     # Author excluded because in the train test, every author mostly only writes
     # true or fake news (F1 is around 0.95 if including _only_ the author)
     return f"title: {title}\n text: {text}"
 
 
-class BaselineDataset(Dataset):
+class WelfakeDataset(Dataset):
     def __init__(self, dataset_csv_path: Path, tokenizer: PreTrainedTokenizer, max_length: int):
         super().__init__()
         source_df = pd.read_csv(dataset_csv_path)
@@ -34,7 +34,8 @@ class BaselineDataset(Dataset):
         self.df = processed_df
         self.tokenizer = tokenizer
         self.max_length = max_length
-        self.max_samples = 20  # debug
+        # self.max_samples = 20  # debug
+        self.max_samples = len(self.df)  # debug
 
     def __len__(self):
         # return len(self.df)

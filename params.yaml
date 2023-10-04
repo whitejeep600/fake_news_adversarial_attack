@@ -1,10 +1,5 @@
-src.train_eval_split:
-  source_path: data/train.csv
-  target_train_path: data/train.csv
-  target_eval_path: data/eval.csv
-
 src.evaluate_attack:
-  eval_split_path: data/eval.csv
+  eval_split_path: data/kaggle/eval.csv
   model_class: baseline
   weights_path: checkpoints/baseline_6_IX.pt
   attacker_name: text_fooler
@@ -12,18 +7,30 @@ src.evaluate_attack:
   results_save_path: ./evaluation_results.csv
 
 models.baseline:
-  bert_model_name: prajjwal1/bert-tiny  # todo probably not, just for testing
-  train_split_path: data/train.csv
-  eval_split_path: data/eval.csv
-  test_split_path: data/test.csv
+  train_split_path: data/kaggle/train.csv
+  eval_split_path: data/kaggle/eval.csv
+  test_split_path: data/kaggle/test.csv
   batch_size: 32
-  max_length: 512
   n_epochs: 4
   lr: 1e-4
-  save_path: models/baseline.pt
+  save_path: checkpoints/baseline.pt
   submission_path: data/submission.csv
-  # todo: out of 18720 samples in the train set, only 8825 are actually
-  # shorter than that; try increasing max length or processing in chunks
+  train_eval_split:
+    source_path: data/kaggle/train.csv
+    target_train_path: data/kaggle/train.csv
+    target_eval_path: data/kaggle/eval.csv
+
+models.welfake:
+  train_split_path: data/welfake/train.csv
+  eval_split_path: data/kaggle/eval.csv
+  batch_size: 32
+  n_epochs: 16
+  lr: 1e-4
+  save_path: checkpoints/welfake.pt
+  train_eval_split:
+    source_path: data/welfake/WELFake_Dataset.csv
+    target_train_path: data/welfake/train.csv
+    target_eval_path: data/welfake/eval.csv
 
 attacks.text_fooler:
   n_neighbors_considered: 20

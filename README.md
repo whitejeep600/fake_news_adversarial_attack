@@ -8,19 +8,12 @@ the attacks.
 
 ## Environment
 
-To set up an environment called `adversarial` with all the required packages and 
+To set up a Python environment called `adversarial` with all the required packages and 
 GPU support, run `setup.sh`.
 
 ## Data
 
-As the train and test set, the files *train.csv* and *test.csv* from
-[this Kaggle competition](https://www.kaggle.com/competitions/fake-news/data) have been 
-used, respectively. They have  the following columns: id, title, author, text, label, 
-with label 0 meaning  reliable and 1 meaning unreliable information. The code can be 
-run without additional adjustments if they are saved under the main directory as 
-`data/train.csv` and `data/test.csv`.
-
-
+# Knowledge graph
 To get the knowledge graph, run
 
 ```
@@ -29,7 +22,18 @@ $ wget https://github.com/BunsenFeng/news_stance_detection/blob/main/KG/USPoliti
 $ mv USPoliticalKG.data data/knowledge_graph.txt  # let's not pretend this isn't a txt file
 ```
 
-Then run `python -m src.train_eval_split` to complete the data setup.
+# Baseline model
+
+For the baseline model, the files *train.csv* and *test.csv* from 
+[this Kaggle competition](https://www.kaggle.com/competitions/fake-news/data) have been used as the
+train and test set, respectively. They have  the following columns: id, title, author, text, label, 
+with label 0 meaning  reliable and 1 meaning unreliable information. The code can be run without 
+additional adjustments if they are saved under the main directory as 
+`data/kaggle/train.csv` and `data/kaggle/test.csv`.  Then, run
+
+`$ python -m models.baseline.train_eval_split`
+
+to complete the data setup for the baseline model.
 
 
 ## Attacked models

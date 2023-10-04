@@ -1,15 +1,16 @@
 from pathlib import Path
 
-import torch.nn
+import torch
 import yaml
 from torch import nn
 from torch.nn.modules.loss import _Loss
-from torch.optim import AdamW, Optimizer
+from torch.optim import Optimizer
 from torch.utils.data import DataLoader
 from tqdm import tqdm
+from transformers import AdamW
 
-from models.baseline.dataset import BaselineDataset
-from models.baseline.model import BaselineBertDetector
+from models.welfake.dataset import WelfakeDataset
+from models.welfake.model import WelfakeDetector
 from src.torch_utils import get_available_torch_device
 
 
@@ -133,10 +134,10 @@ def main(
 ):
     device = get_available_torch_device()
     model_config["device"] = device
-    model = BaselineBertDetector(**model_config)
+    model = WelfakeDetector(**model_config)
 
-    train_dataset = BaselineDataset(train_split_path, model.tokenizer, model.max_length)
-    eval_dataset = BaselineDataset(eval_split_path, model.tokenizer, model.max_length)
+    train_dataset = WelfakeDataset(train_split_path, model.tokenizer, model.max_length)
+    eval_dataset = WelfakeDataset(eval_split_path, model.tokenizer, model.max_length)
 
     train_dataloader = DataLoader(train_dataset, batch_size=batch_size)
     eval_dataloader = DataLoader(eval_dataset, batch_size=batch_size)
@@ -145,16 +146,14 @@ def main(
 
 
 if __name__ == "__main__":
-    baseline_params = yaml.safe_load(open("params.yaml"))["models.baseline"]
-    bert_model_name = baseline_params["bert_model_name"]
-    train_split_path = Path(baseline_params["train_split_path"])
-    eval_split_path = Path(baseline_params["eval_split_path"])
-    batch_size = baseline_params["batch_size"]
-    max_length = int(baseline_params["max_length"])
-    n_epochs = int(baseline_params["n_epochs"])
-    lr = float(baseline_params["lr"])
-    save_path = Path(baseline_params["save_path"])
-    model_config = yaml.safe_load(open("configs/model_configs.yaml"))["baseline"]
+    welfake_params = yaml.safe_load(open("params.yaml"))["models.welfake"]
+    train_split_path = Path(welfake_params["train_split_path"])
+    eval_split_path = Path(welfake_params["eval_split_path"])
+    batch_size = welfake_params["batch_size"]
+    n_epochs = int(welfake_params["n_epochs"])
+    lr = float(welfake_params["lr"])
+    save_path = Path(welfake_params["save_path"])
+    model_config = yaml.safe_load(open("configs/model_configs.yaml"))["welfake"]
     main(
         train_split_path,
         eval_split_path,

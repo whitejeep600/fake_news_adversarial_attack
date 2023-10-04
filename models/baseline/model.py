@@ -62,7 +62,7 @@ class BaselineFakeNewsDetectorPipeline(Pipeline):
         ]
 
 
-class BaselineBert(FakeNewsDetector):
+class BaselineBertDetector(FakeNewsDetector):
     def __init__(self, model_name: str, n_classes: int, max_length: int, device: str):
         super().__init__(AutoTokenizer.from_pretrained(model_name), max_length, device)
         self.bert = BertModel.from_pretrained(model_name)

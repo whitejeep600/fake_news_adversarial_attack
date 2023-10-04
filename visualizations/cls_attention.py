@@ -10,8 +10,8 @@ import torch
 import truecolor
 import yaml
 
-from models.baseline.dataset import FakeNewsDataset
-from models.baseline.model import BaselineBert
+from models.baseline.dataset import BaselineDataset
+from models.baseline.model import BaselineBertDetector
 from src.torch_utils import get_available_torch_device
 
 
@@ -20,10 +20,10 @@ def main(weights_path: Path, eval_split_path: Path):
     model_config = yaml.safe_load(open("configs/model_configs.yaml"))[model_class]
     device = get_available_torch_device()
     model_config["device"] = device
-    model = BaselineBert(**model_config)
+    model = BaselineBertDetector(**model_config)
     model.load_state_dict(torch.load(weights_path, map_location=torch.device(device)))
     model.to(device)
-    eval_dataset = FakeNewsDataset(eval_split_path, model.tokenizer, model.max_length)
+    eval_dataset = BaselineDataset(eval_split_path, model.tokenizer, model.max_length)
     for sample in eval_dataset.iterate_untokenized():
         text = sample["text"]
         tokenized_text = model.tokenizer(

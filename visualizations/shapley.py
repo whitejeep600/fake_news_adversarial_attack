@@ -10,7 +10,7 @@ import torch
 import yaml
 from tqdm import tqdm
 
-from models.baseline.dataset import FakeNewsDataset
+from models.baseline.dataset import BaselineDataset
 from src.evaluate_attack import MODELS_DICT
 from src.torch_utils import get_available_torch_device
 
@@ -23,7 +23,7 @@ def main(model_class: str, weights_path: Path, eval_split_path: Path, plots_path
     model = MODELS_DICT[model_class](**model_config)
     model.load_state_dict(torch.load(weights_path, map_location=torch.device(device)))
     model.to(device)
-    eval_dataset = FakeNewsDataset(eval_split_path, model.tokenizer, model.max_length)
+    eval_dataset = BaselineDataset(eval_split_path, model.tokenizer, model.max_length)
     pipeline = model.to_pipeline()
     n_total = len(eval_dataset)
     for i, sample in enumerate(

@@ -9,8 +9,8 @@ from tqdm import tqdm
 from attacks.base import AdversarialAttacker
 from attacks.text_fooler.text_fooler import TextFoolerAttacker
 from models.base import FakeNewsDetector
-from models.baseline.dataset import FakeNewsDataset
-from models.baseline.model import BaselineBert
+from models.baseline.dataset import BaselineDataset
+from models.baseline.model import BaselineBertDetector
 from src.metrics import (
     AttackAggregateMetrics,
     AttackSingleSampleMetrics,
@@ -23,15 +23,16 @@ ATTACKERS_DICT: dict[str, Type[AdversarialAttacker]] = {
     "text_fooler": TextFoolerAttacker,
 }
 
-MODELS_DICT: dict[str, Type[FakeNewsDetector]] = {"baseline": BaselineBert}
+MODELS_DICT: dict[str, Type[FakeNewsDetector]] = {"baseline": BaselineBertDetector}
 
 
 # todo code structure probably different for easy experiments but let's develop
 #  say two models and two attackers first and then see how to organize it neatly
-
-
 # todo maybe move some of the dataset management to the model, in particular make
-#  sure the same data is loaded from the source .csv (no author and so on)
+#  sure the same data is loaded from the source .csv (no author and so on). Or
+#  create a super class FakeNewsDataset implementingm methods required for training
+#  and for this evaluation script, and inherit from it in different models (e.g.
+#  what is currently FakeNewsDataset will become BaselineDataset)
 
 
 def process_sample(
@@ -115,7 +116,7 @@ def main(
 
     model_config["device"] = get_available_torch_device()
     model = MODELS_DICT[model_class](**model_config)
-    eval_dataset = FakeNewsDataset(eval_split_path, model.tokenizer, model.max_length)
+    eval_dataset = BaselineDataset(eval_split_path, model.tokenizer, model.max_length)
 
     # None if sample skipped because the model's prediction was already wrong
     metrics: list[AttackSingleSampleMetrics | None] = []

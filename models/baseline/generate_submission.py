@@ -6,8 +6,8 @@ import yaml
 from torch.utils.data import DataLoader
 from tqdm import tqdm
 
-from models.baseline.dataset import FakeNewsDataset
-from models.baseline.model import BaselineBert
+from models.baseline.dataset import BaselineDataset
+from models.baseline.model import BaselineBertDetector
 from src.torch_utils import get_available_torch_device
 
 
@@ -20,10 +20,10 @@ def main(
 ) -> None:
     device = get_available_torch_device()
     model_config["device"] = device
-    model = BaselineBert(**model_config)
+    model = BaselineBertDetector(**model_config)
     model.load_state_dict(torch.load(weights_path))
     model.eval()
-    test_dataset = FakeNewsDataset(test_split_path, model.tokenizer, model.max_length)
+    test_dataset = BaselineDataset(test_split_path, model.tokenizer, model.max_length)
     test_dataloader = DataLoader(test_dataset, batch_size=batch_size)
     all_ids: list[int] = []
     all_labels: list[int] = []
