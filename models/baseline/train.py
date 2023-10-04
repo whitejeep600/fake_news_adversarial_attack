@@ -146,11 +146,9 @@ def main(
 
 if __name__ == "__main__":
     baseline_params = yaml.safe_load(open("params.yaml"))["models.baseline"]
-    bert_model_name = baseline_params["bert_model_name"]
     train_split_path = Path(baseline_params["train_split_path"])
     eval_split_path = Path(baseline_params["eval_split_path"])
     batch_size = baseline_params["batch_size"]
-    max_length = int(baseline_params["max_length"])
     n_epochs = int(baseline_params["n_epochs"])
     lr = float(baseline_params["lr"])
     save_path = Path(baseline_params["save_path"])
