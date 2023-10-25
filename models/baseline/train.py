@@ -2,7 +2,6 @@ from pathlib import Path
 
 import torch.nn
 import yaml
-from torch import nn
 from torch.nn.modules.loss import _Loss
 from torch.optim import AdamW, Optimizer
 from torch.utils.data import DataLoader
@@ -14,7 +13,7 @@ from src.torch_utils import get_available_torch_device
 
 
 def train_iteration(
-    model: nn.Module,
+    model: torch.nn.Module,
     train_dataloader: DataLoader,
     loss_fn: _Loss,
     optimizer: Optimizer,
@@ -61,7 +60,7 @@ def calculate_stats(predictions: torch.Tensor, labels: torch.Tensor) -> tuple[in
 
 
 def eval_iteration(
-    model: nn.Module, eval_dataloader: DataLoader, loss_fn: _Loss, device: str
+    model: torch.nn.Module, eval_dataloader: DataLoader, loss_fn: _Loss, device: str
 ) -> float | None:
     model.eval()
     losses: list[float] = []
@@ -101,7 +100,7 @@ def eval_iteration(
 
 
 def train(
-    model: nn.Module,
+    model: torch.nn.Module,
     train_dataloader: DataLoader,
     eval_dataloader: DataLoader,
     n_epochs: int,
@@ -109,7 +108,7 @@ def train(
     save_path: Path,
     device: str,
 ):
-    loss_fn = nn.CrossEntropyLoss()
+    loss_fn = torch.nn.CrossEntropyLoss()
     optimizer = AdamW(model.parameters(), lr=lr)
     save_path.parent.mkdir(exist_ok=True)
     best_F1 = 0.0

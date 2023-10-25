@@ -1,3 +1,7 @@
+# Code in this module copied from the baseline model shamelessly, after some improvements I'll
+# see what can be deleted / moved to common files
+
+
 import torch
 from torch.nn import Linear
 from transformers import AutoTokenizer, BertModel, Pipeline

@@ -22,9 +22,9 @@ models.baseline:
 
 models.welfake:
   train_split_path: data/welfake/train.csv
-  eval_split_path: data/kaggle/eval.csv
-  batch_size: 32
-  n_epochs: 16
+  eval_split_path: data/welfake/eval.csv
+  batch_size: 8
+  n_epochs: 4
   lr: 1e-4
   save_path: checkpoints/welfake.pt
   train_eval_split:

@@ -110,7 +110,7 @@ def train(
     save_path: Path,
     device: str,
 ):
-    loss_fn = nn.CrossEntropyLoss()
+    loss_fn = torch.nn.CrossEntropyLoss()
     optimizer = AdamW(model.parameters(), lr=lr)
     save_path.parent.mkdir(exist_ok=True)
     best_F1 = 0.0

@@ -3,3 +3,5 @@ data/
 *__pycache__/
 attacks/text_fooler/neighbors.json
 plots/
+checkpoints/welfake.pt
+
