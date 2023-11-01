@@ -11,6 +11,7 @@ from attacks.text_fooler.text_fooler import TextFoolerAttacker
 from models.base import FakeNewsDetector
 from models.baseline.dataset import BaselineDataset
 from models.baseline.model import BaselineBertDetector
+from models.welfake.model import WelfakeDetector
 from src.metrics import (
     AttackAggregateMetrics,
     AttackSingleSampleMetrics,
@@ -23,7 +24,10 @@ ATTACKERS_DICT: dict[str, Type[AdversarialAttacker]] = {
     "text_fooler": TextFoolerAttacker,
 }
 
-MODELS_DICT: dict[str, Type[FakeNewsDetector]] = {"baseline": BaselineBertDetector}
+MODELS_DICT: dict[str, Type[FakeNewsDetector]] = {
+    "baseline": BaselineBertDetector,
+    "welfake": WelfakeDetector
+}
 
 
 # todo code structure probably different for easy experiments but let's develop
