@@ -40,6 +40,9 @@ attacks.text_fooler:
 attacks.generative:
   victim: welfake
   victim_weights_path: checkpoints/welfake_32.pt
+  n_epochs: 4
+  lr: 1e-4
+  save_path: checkpoints/generative.pt
 
 visualizations.cls_attention:
   plots_path: plots/cls_attention
