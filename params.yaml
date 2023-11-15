@@ -37,5 +37,9 @@ attacks.text_fooler:
   n_neighbors_precomputed: 200
   neighbors_path: attacks/text_fooler/neighbors.json
 
+attacks.generative:
+  victim: welfake
+  victim_weights_path: checkpoints/welfake_32.pt
+
 visualizations.cls_attention:
-  plots_path: plots/shap
+  plots_path: plots/cls_attention

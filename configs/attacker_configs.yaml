@@ -4,3 +4,5 @@ text_fooler:
   neighbors_path: attacks/text_fooler/neighbors.json
   n_neighbors_considered: 5
   n_neighbors_precomputed: 200
+
+generative:
