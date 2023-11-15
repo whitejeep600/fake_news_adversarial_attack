@@ -23,6 +23,3 @@ class WelfakeDetector(FakeNewsDetector):
         pooled = outputs.pooler_output  # in line with Huggingface's BertForSequenceClassification
         logits = self.linear_to_logits(pooled)
         return logits
-
-    def to_pipeline(self) -> Pipeline:
-        raise NotImplementedError

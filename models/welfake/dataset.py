@@ -4,8 +4,9 @@ from pathlib import Path
 import pandas as pd
 import torch
 from pandas import DataFrame
-from torch.utils.data import Dataset
 from transformers import PreTrainedTokenizer
+
+from models.base_dataset import FakeNewsDetectorDataset
 
 
 def concatenate_article_data(source_df: DataFrame):
@@ -13,9 +14,9 @@ def concatenate_article_data(source_df: DataFrame):
     return f"title: {title}\n text: {text}"
 
 
-class WelfakeDataset(Dataset):
+class WelfakeDataset(FakeNewsDetectorDataset):
     def __init__(self, dataset_csv_path: Path, tokenizer: PreTrainedTokenizer, max_length: int):
-        super().__init__()
+        super().__init__(dataset_csv_path, tokenizer, max_length)
         source_df = pd.read_csv(dataset_csv_path)
 
         processed_df = pd.DataFrame()

@@ -7,7 +7,6 @@ from torch.utils.data import DataLoader
 
 from models.baseline.train import eval_iteration
 from models.welfake.dataset import WelfakeDataset
-from models.welfake.model import WelfakeDetector
 from src.evaluate_attack import MODELS_DICT
 from src.torch_utils import get_available_torch_device
 
@@ -17,7 +16,7 @@ def main(
     eval_split_path: Path,
     batch_size: int,
     model_config: dict,
-        model_class: str
+    model_class: str
 ):
     device = get_available_torch_device()
     model_config["device"] = device

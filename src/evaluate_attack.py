@@ -9,8 +9,10 @@ from tqdm import tqdm
 from attacks.base import AdversarialAttacker
 from attacks.text_fooler.text_fooler import TextFoolerAttacker
 from models.base import FakeNewsDetector
+from models.base_dataset import FakeNewsDetectorDataset
 from models.baseline.dataset import BaselineDataset
 from models.baseline.model import BaselineBertDetector
+from models.welfake.dataset import WelfakeDataset
 from models.welfake.model import WelfakeDetector
 from src.metrics import (
     AttackAggregateMetrics,
@@ -27,6 +29,11 @@ ATTACKERS_DICT: dict[str, Type[AdversarialAttacker]] = {
 MODELS_DICT: dict[str, Type[FakeNewsDetector]] = {
     "baseline": BaselineBertDetector,
     "welfake": WelfakeDetector
+}
+
+DATASETS_DICT: dict[str, type[FakeNewsDetectorDataset]] = {
+    "baseline": BaselineDataset,
+    "welfake": WelfakeDataset
 }
 
 
