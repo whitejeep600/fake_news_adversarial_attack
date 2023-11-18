@@ -39,7 +39,7 @@ attacks.text_fooler:
 
 attacks.generative:
   victim: welfake
-  victim_weights_path: checkpoints/welfake_32.pt
+  victim_weights_path: checkpoints/welfake_1e-5.pt
   n_epochs: 4
   lr: 1e-4
   batch_size: 4
@@ -52,7 +52,7 @@ attacks.generative.precompute_victim_logits:
   target_eval_split_path: data/generative/eval_with_logits.csv
   victim: welfake
   victim_weights_path: checkpoints/welfake_1e-5.pt
-  batch_size: 16
+  batch_size: 64
 
 visualizations.cls_attention:
   plots_path: plots/cls_attention

@@ -4,23 +4,28 @@ from typing import Any
 import pandas as pd
 import torch
 import yaml
-from torch.utils.data import DataLoader
+from torch.utils.data import DataLoader, Dataset
 from tqdm import tqdm
 
 from src.evaluate_attack import MODELS_DICT, DATASETS_DICT
 from src.torch_utils import get_available_torch_device
 
 
-def add_logits_to_dataset(
+def add_logits_to_split(
     model: torch.nn.Module,
-    dataloader: DataLoader,
-    dataframe: pd.DataFrame,
+    split_path: Path,
+    batch_size: int,
     device: str,
     target_path: Path,
 ) -> None:
-    # get a map from id to logits
-    # concatenate those logits to the input dataframe
-    # save
+    original_dataframe = pd.read_csv(split_path)
+    original_dataframe.reset_index(drop=True)
+    dataset = DATASETS_DICT[victim_class](
+        split_path, model.tokenizer, model.max_length
+    )
+    dataloader = DataLoader(
+        dataset, batch_size=batch_size, shuffle=False
+    )
     id_to_logits: dict[int, tuple[float, float]] = {}
     with torch.no_grad():
         for batch in tqdm(
@@ -37,11 +42,11 @@ def add_logits_to_dataset(
                     for i in range(len(batch["id"]))
                 }
             )
-    true_logits = [id_to_logits[sample_id][0] for sample_id in dataframe["id"].tolist()]
-    false_logits = [id_to_logits[sample_id][1] for sample_id in dataframe["id"].tolist()]
-    dataframe["true_logit"] = true_logits
-    dataframe["false_logit"] = false_logits
-    dataframe.to_csv(target_path, index=False)
+    true_logits = [id_to_logits[sample_id][0] for sample_id in original_dataframe["id"].tolist()]
+    false_logits = [id_to_logits[sample_id][1] for sample_id in original_dataframe["id"].tolist()]
+    original_dataframe["true_logit"] = true_logits
+    original_dataframe["false_logit"] = false_logits
+    original_dataframe.to_csv(target_path, index=False)
 
 
 def main(
@@ -61,28 +66,11 @@ def main(
     victim.to(device)
     victim.eval()
 
-    original_eval_dataframe = pd.read_csv(eval_split_path, index_col=0)
-    original_train_dataframe = pd.read_csv(train_split_path, index_col=0)
-
-    original_eval_dataset = DATASETS_DICT[victim_class](
-        eval_split_path, victim.tokenizer, victim.max_length
+    add_logits_to_split(
+        victim, eval_split_path, batch_size, device, target_eval_split_path
     )
-    original_train_dataset = DATASETS_DICT[victim_class](
-        train_split_path, victim.tokenizer, victim.max_length
-    )
-
-    original_eval_dataloader = DataLoader(
-        original_eval_dataset, batch_size=batch_size, shuffle=False
-    )
-    original_train_dataloader = DataLoader(
-        original_train_dataset, batch_size=batch_size, shuffle=False
-    )
-
-    add_logits_to_dataset(
-        victim, original_eval_dataloader, original_eval_dataframe, device, target_eval_split_path
-    )
-    add_logits_to_dataset(
-        victim, original_train_dataloader, original_train_dataframe, device, target_train_split_path
+    add_logits_to_split(
+        victim, train_split_path, batch_size, device, target_train_split_path
     )
 
 
