@@ -12,12 +12,7 @@ from src.torch_utils import get_available_torch_device
 
 
 # todo make this a more general script for testing models, not just welfake
-def main(
-    eval_split_path: Path,
-    batch_size: int,
-    model_config: dict,
-    model_class: str
-):
+def main(eval_split_path: Path, batch_size: int, model_config: dict, model_class: str):
     device = get_available_torch_device()
     model_config["device"] = device
     model = MODELS_DICT[model_class](**model_config)
@@ -39,9 +34,4 @@ if __name__ == "__main__":
     eval_split_path = Path(welfake_params["eval_split_path"])
     batch_size = welfake_params["batch_size"]
     model_config = yaml.safe_load(open("configs/model_configs.yaml"))["welfake"]
-    main(
-        eval_split_path,
-        batch_size,
-        model_config,
-        "welfake"
-    )
+    main(eval_split_path, batch_size, model_config, "welfake")

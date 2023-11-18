@@ -7,3 +7,5 @@ max_length 512, title, author, text, trained 4 epochs, lr 1e-4, eval F1: 0.998
 trained 32 epochs but converged much quicker, lr: 1e-4, eval F1: 0.67 (todo this cannot be 
 uploaded tto github because too big xd) class WelfakeDetector
 
+`welfake_1e-5.pt` - as above but trained for 4 epochs with a lr of, surprise surprise, 1e-5. F1 of 0.996
+again.

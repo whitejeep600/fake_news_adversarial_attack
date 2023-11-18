@@ -30,12 +30,12 @@ def eval_iteration() -> None:
 
 
 def train(
-        attacker: GenerativeAttacker,
-        victim: FakeNewsDetector,
-        n_epochs: int,
-        lr: float,
-        save_path: Path,
-        device: str
+    attacker: GenerativeAttacker,
+    victim: FakeNewsDetector,
+    n_epochs: int,
+    lr: float,
+    save_path: Path,
+    device: str,
 ) -> None:
     for i in range(n_epochs):
         train_iteration()
@@ -43,16 +43,16 @@ def train(
 
 
 def main(
-        victim_class: str,
-        victim_config: dict[str, Any],
-        victim_weights_path: Path,
-        attacker_config: dict[str, Any],
-        train_split_path: Path,
-        eval_split_path: Path,
-        n_epochs: int,
-        lr: float,
-        batch_size: int,
-        save_path: Path
+    victim_class: str,
+    victim_config: dict[str, Any],
+    victim_weights_path: Path,
+    attacker_config: dict[str, Any],
+    train_split_path: Path,
+    eval_split_path: Path,
+    n_epochs: int,
+    lr: float,
+    batch_size: int,
+    save_path: Path,
 ) -> None:
     device = get_available_torch_device()
     victim_config["device"] = device
@@ -73,7 +73,7 @@ def main(
     train(attacker, victim, n_epochs, lr, save_path, device)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     generative_params = yaml.safe_load(open("params.yaml"))["attacks.generative."]
     victim_class = generative_params["victim"]
     victim_config = yaml.safe_load(open("configs/model_configs.yaml"))[victim_class]
@@ -95,5 +95,5 @@ if __name__ == '__main__':
         n_epochs,
         lr,
         batch_size,
-        save_path
+        save_path,
     )

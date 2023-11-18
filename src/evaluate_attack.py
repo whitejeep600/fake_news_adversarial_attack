@@ -28,12 +28,12 @@ ATTACKERS_DICT: dict[str, Type[AdversarialAttacker]] = {
 
 MODELS_DICT: dict[str, Type[FakeNewsDetector]] = {
     "baseline": BaselineBertDetector,
-    "welfake": WelfakeDetector
+    "welfake": WelfakeDetector,
 }
 
 DATASETS_DICT: dict[str, type[FakeNewsDetectorDataset]] = {
     "baseline": BaselineDataset,
-    "welfake": WelfakeDataset
+    "welfake": WelfakeDataset,
 }
 
 
