@@ -4,25 +4,53 @@ from typing import Any
 import torch
 import yaml
 from torch.utils.data import DataLoader
+from tqdm import tqdm
 
-from attacks.generative.dataset import GenerativeDataset
 from attacks.generative.model import GenerativeAttacker
 from models.base import FakeNewsDetector
-from src.evaluate_attack import MODELS_DICT
+from src.evaluate_attack import MODELS_DICT, DATASETS_DICT
 from src.torch_utils import get_available_torch_device
 
 
-def train_iteration() -> None:
-    pass
-    # get an article from the dataset, truncate to victim max length (well min max length)
-    #  generate response to it (feed with label), retain logits
-    #  evaluate the response
-    #  calculate the reward and loss
-    #  backpropagate
-    #
+def train_iteration(
+    attacker: GenerativeAttacker,
+    victim: FakeNewsDetector,
+    dataloader: DataLoader,
+    lr: float,
+    device: str,
+    common_max_length: int
+) -> None:
+    attacker.train()
+    for batch in tqdm(
+        dataloader,
+        total=len(dataloader),
+        desc="train iteration",
+        leave=False,
+    ):
+        input_ids = batch["attacker_prompt_ids"].to(device)
+        generated_ids = attacker.generate(input_ids, common_max_length)
+        generated_seqs = attacker.tokenizer.batch_decode(
+            generated_ids, skip_special_tokens=True
+        )
+
+        # debug
+        original_seqs = [dataloader.dataset.df[dataloader.dataset.df["id"] == i]["text"].values for i in batch["id"].tolist()]
+        victim_logits = [victim.get_logits(seq) for seq in generated_seqs]
+        pass
+        # get attacker logits
+        # calculate the reward and loss
+        # backpropagate
 
 
-def eval_iteration() -> None:
+def eval_iteration(
+    attacker: GenerativeAttacker,
+    victim: FakeNewsDetector,
+    dataloader: DataLoader,
+    save_path: Path,
+    device: str,
+    common_max_length: int
+) -> None:
+    attacker.eval()
     pass
     # get an article from the dataset
     # generate response to it (feed with label), retain logits
@@ -32,14 +60,18 @@ def eval_iteration() -> None:
 def train(
     attacker: GenerativeAttacker,
     victim: FakeNewsDetector,
+    train_dataloader: DataLoader,
+    eval_dataloader: DataLoader,
     n_epochs: int,
     lr: float,
     save_path: Path,
     device: str,
+    common_max_length: int
 ) -> None:
+    victim.eval()
     for i in range(n_epochs):
-        train_iteration()
-        eval_iteration()
+        train_iteration(attacker, victim, train_dataloader, lr, device, common_max_length)
+        eval_iteration(attacker, victim, eval_dataloader, save_path, device, common_max_length)
 
 
 def main(
@@ -64,17 +96,29 @@ def main(
 
     common_max_length = min(attacker.max_length, victim.max_length)
 
-    train_dataset = GenerativeDataset(train_split_path, attacker.tokenizer, common_max_length)
-    eval_dataset = GenerativeDataset(eval_split_path, attacker.tokenizer, common_max_length)
+    train_dataset = DATASETS_DICT[victim_class](
+        train_split_path,
+        attacker.tokenizer,
+        common_max_length,
+        include_logits=True,
+        attacker_tokenizer=attacker.tokenizer,
+    )
+    eval_dataset = DATASETS_DICT[victim_class](
+        train_split_path,
+        attacker.tokenizer,
+        common_max_length,
+        include_logits=True,
+        attacker_tokenizer=attacker.tokenizer,
+    )
 
-    train_dataloader = DataLoader(train_dataset, batch_size=batch_size)
-    eval_dataloader = DataLoader(eval_dataset, batch_size=batch_size)
+    train_dataloader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True)
+    eval_dataloader = DataLoader(eval_dataset, batch_size=batch_size, shuffle=True)
 
-    train(attacker, victim, n_epochs, lr, save_path, device)
+    train(attacker, victim, train_dataloader, eval_dataloader, n_epochs, lr, save_path, device, common_max_length)
 
 
 if __name__ == "__main__":
-    generative_params = yaml.safe_load(open("params.yaml"))["attacks.generative."]
+    generative_params = yaml.safe_load(open("params.yaml"))["attacks.generative"]
     victim_class = generative_params["victim"]
     victim_config = yaml.safe_load(open("configs/model_configs.yaml"))[victim_class]
     victim_weights_path = Path(generative_params["victim_weights_path"])

@@ -42,8 +42,10 @@ attacks.generative:
   victim_weights_path: checkpoints/welfake_1e-5.pt
   n_epochs: 4
   lr: 1e-4
-  batch_size: 4
+  batch_size: 2
   save_path: checkpoints/generative.pt
+  train_split_path: data/generative/train_with_logits.csv
+  eval_split_path: data/generative/eval_with_logits.csv
 
 attacks.generative.precompute_victim_logits:
   train_split_path: data/welfake/train.csv

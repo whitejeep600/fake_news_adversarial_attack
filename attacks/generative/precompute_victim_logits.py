@@ -20,12 +20,8 @@ def add_logits_to_split(
 ) -> None:
     original_dataframe = pd.read_csv(split_path)
     original_dataframe.reset_index(drop=True)
-    dataset = DATASETS_DICT[victim_class](
-        split_path, model.tokenizer, model.max_length
-    )
-    dataloader = DataLoader(
-        dataset, batch_size=batch_size, shuffle=False
-    )
+    dataset = DATASETS_DICT[victim_class](split_path, model.tokenizer, model.max_length)
+    dataloader = DataLoader(dataset, batch_size=batch_size, shuffle=False)
     id_to_logits: dict[int, tuple[float, float]] = {}
     with torch.no_grad():
         for batch in tqdm(
@@ -66,12 +62,8 @@ def main(
     victim.to(device)
     victim.eval()
 
-    add_logits_to_split(
-        victim, eval_split_path, batch_size, device, target_eval_split_path
-    )
-    add_logits_to_split(
-        victim, train_split_path, batch_size, device, target_train_split_path
-    )
+    add_logits_to_split(victim, eval_split_path, batch_size, device, target_eval_split_path)
+    add_logits_to_split(victim, train_split_path, batch_size, device, target_train_split_path)
 
 
 if __name__ == "__main__":
