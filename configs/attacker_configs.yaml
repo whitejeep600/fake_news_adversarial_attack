@@ -6,5 +6,6 @@ text_fooler:
   n_neighbors_precomputed: 200
 
 generative:
-  model_name: eugenesiow/bart-paraphrase
+  #model_name: eugenesiow/bart-paraphrase
+  model_name: sshleifer/bart-tiny-random
   max_length: 1024

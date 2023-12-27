@@ -7,7 +7,7 @@ import yaml
 from torch.utils.data import DataLoader, Dataset
 from tqdm import tqdm
 
-from src.evaluate_attack import MODELS_DICT, DATASETS_DICT
+from src.evaluate_attack import DATASETS_DICT, MODELS_DICT
 from src.torch_utils import get_available_torch_device
 
 
@@ -39,9 +39,9 @@ def add_logits_to_split(
                 }
             )
     true_logits = [id_to_logits[sample_id][0] for sample_id in original_dataframe["id"].tolist()]
-    false_logits = [id_to_logits[sample_id][1] for sample_id in original_dataframe["id"].tolist()]
+    fake_logits = [id_to_logits[sample_id][1] for sample_id in original_dataframe["id"].tolist()]
     original_dataframe["true_logit"] = true_logits
-    original_dataframe["false_logit"] = false_logits
+    original_dataframe["fake_logit"] = fake_logits
     original_dataframe.to_csv(target_path, index=False)
 
 

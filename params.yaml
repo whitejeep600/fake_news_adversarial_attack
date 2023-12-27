@@ -46,6 +46,7 @@ attacks.generative:
   save_path: checkpoints/generative.pt
   train_split_path: data/generative/train_with_logits.csv
   eval_split_path: data/generative/eval_with_logits.csv
+  similarity_evaluator_name: flax-sentence-embeddings/all_datasets_v4_MiniLM-L6
 
 attacks.generative.precompute_victim_logits:
   train_split_path: data/welfake/train.csv

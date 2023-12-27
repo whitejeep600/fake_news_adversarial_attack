@@ -16,8 +16,8 @@ def concatenate_article_data(source_df: DataFrame):
 
 def get_attacker_prompt(source_df: DataFrame):
     title, text = [str(source_df[key]) for key in ["title", "text"]]
-    true_logit, false_logit = [str(source_df[key]) for key in ["true_logit", "false_logit"]]
-    label = "true\n" if true_logit > false_logit else "false\n"
+    true_logit, fake_logit = [str(source_df[key]) for key in ["true_logit", "fake_logit"]]
+    label = "true\n" if true_logit > fake_logit else "fake\n"
     return f"{label} title: {title}\n text: {text}"
 
 
@@ -43,7 +43,7 @@ class WelfakeDataset(FakeNewsDetectorDataset):
         processed_df["id"] = source_df["id"]
         if include_logits:
             processed_df["true_logit"] = source_df["true_logit"]
-            processed_df["false_logit"] = source_df["false_logit"]
+            processed_df["fake_logit"] = source_df["fake_logit"]
 
         self.df = processed_df
         self.tokenizer = tokenizer
@@ -77,7 +77,7 @@ class WelfakeDataset(FakeNewsDetectorDataset):
         }
         if self.include_logits:
             true_logit = self.df.iloc[i, :]["true_logit"]
-            false_logit = self.df.iloc[i, :]["false_logit"]
+            fake_logit = self.df.iloc[i, :]["fake_logit"]
             attacker_prompt = self.df.iloc[i, :]["attacker_prompt"]
             tokenized_prompt = self.attacker_tokenizer(
                 attacker_prompt,
@@ -88,8 +88,7 @@ class WelfakeDataset(FakeNewsDetectorDataset):
             )
             return_dict.update(
                 {
-                    "true_logit": torch.tensor(true_logit),
-                    "false_logit": torch.tensor(false_logit),
+                    "logits": torch.tensor([true_logit, fake_logit]),
                     "attacker_prompt_ids": tokenized_prompt["input_ids"].flatten(),
                 }
             )
