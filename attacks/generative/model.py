@@ -28,7 +28,6 @@ class GenerativeAttacker(AdversarialAttacker):
     def generate(
         self, batch: torch.Tensor, max_victim_length: int, reference_model: torch.nn.Module
     ) -> tuple[torch.Tensor, list[torch.Tensor], list[torch.Tensor]]:
-        # Return the generated ids, and a list of tensors of predicted token logits
         generated_ids: list[torch.Tensor] = []
         token_logits: list[torch.Tensor] = []
         scores: list = []
@@ -65,3 +64,19 @@ class GenerativeAttacker(AdversarialAttacker):
             ]
         )
         return all_token_ids, token_logits, scores
+
+    def decode_prefixes(self, generated_ids) -> list[list[str]]:
+        results: list[list[str]] = []
+        for i in range(len(generated_ids)):
+            results.append([])
+            decoded_length = -1
+            for j in range(len(generated_ids[i])):
+                prefix = self.tokenizer.batch_decode(
+                    [generated_ids[i][: j + 1]], skip_special_tokens=True
+                )[0]
+                if len(prefix) == decoded_length:
+                    break
+                if len(prefix) != 0:
+                    decoded_length = len(prefix)
+                    results[-1].append(prefix)
+        return results

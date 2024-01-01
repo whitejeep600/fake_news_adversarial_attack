@@ -1,3 +1,4 @@
+import copy
 from pathlib import Path
 from typing import Any
 
@@ -15,10 +16,15 @@ from src.torch_utils import get_available_torch_device
 
 class PPOTrainer:
     def __init__(self, model: GenerativeAttacker):
-        self.reference_model = model
+        self.reference_model = copy.deepcopy(model)
+        self.reference_model.eval()
 
     def set_reference_model(self, model: GenerativeAttacker):
-        self.reference_model = model
+        self.reference_model = copy.deepcopy(model)
+
+
+def all_equal(values) -> bool:
+    return len(values) == 0 or all([len(value) == len(values[0]) for value in values])
 
 
 def train_iteration(
@@ -31,6 +37,7 @@ def train_iteration(
     similarity_evaluator: SimilarityEvaluator,
 ) -> None:
     attacker.train()
+    victim.eval()
     ppo_trainer = PPOTrainer(attacker)
     for batch in tqdm(
         dataloader,
@@ -42,28 +49,51 @@ def train_iteration(
         generated_ids, token_logits, reference_logits = attacker.generate(
             input_ids, common_max_length, ppo_trainer.reference_model.bert
         )
-        generated_seqs = attacker.tokenizer.batch_decode(generated_ids, skip_special_tokens=True)
-        victim_classification_probabilities = [
-            torch.softmax(victim.get_logits(seq), dim=0) for seq in generated_seqs
-        ]
-        target_labels = 1 - batch["label"]
-        target_label_probabilities = [
-            victim_classification_probabilities[i][target_labels[i]]
-            for i in range(len(target_labels))
-        ]
-        original_seqs = attacker.tokenizer.batch_decode(
-            batch["attacker_prompt_ids"], skip_special_tokens=True
-        )
-        similarity_scores = [
-            similarity_evaluator.evaluate(original_seq, generated_seq)
-            for original_seq, generated_seq in zip(original_seqs, generated_seqs)
-        ]
+        batch_prefixes = attacker.decode_prefixes(generated_ids)
+        victim_classification_probabilities: list[torch.Tensor] = []
+        for i in range(len(batch_prefixes)):
+            assert all_equal(
+                [len(token_logits[i]), len(reference_logits[i]), len(batch_prefixes[i])]
+            )
+        with torch.no_grad():
+            for sample_prefixes in batch_prefixes:
+                sample_probabilities: list[torch.Tensor] = []
+                for prefix in sample_prefixes:
+                    sample_probabilities.append(victim.get_probabilities(prefix))
+                victim_classification_probabilities.append(torch.stack(sample_probabilities))
+            target_labels = 1 - batch["label"]
+            target_label_probabilities = [
+                torch.stack(
+                    [
+                        victim_classification_probabilities[i][j][target_labels[i]]
+                        for j in range(len(victim_classification_probabilities[i]))
+                    ]
+                )
+                for i in range(len(target_labels))
+            ]
+
+            original_seqs = attacker.tokenizer.batch_decode(
+                batch["attacker_prompt_ids"], skip_special_tokens=True
+            )
+            similarity_scores = [
+                torch.Tensor(
+                    [
+                        similarity_evaluator.evaluate(prefix, original_seq)
+                        for prefix in sample_prefixes
+                    ]
+                )
+                for sample_prefixes, original_seq in zip(batch_prefixes, original_seqs)
+            ]
 
         # todo maybe include naturalness as well but tbd
-        rewards = target_label_probabilities + similarity_scores
+        # todo make sure those tensors have equal length
+        rewards = [
+            target_label_probabilities[i] + similarity_scores[i] for i in range(len(batch_prefixes))
+        ]
         pass
 
-        # calculate the loss and implement the weights update
+        # calculate the loss and implement the weights update with rewards,
+        # token logits, and reference logits
 
 
 def eval_iteration(

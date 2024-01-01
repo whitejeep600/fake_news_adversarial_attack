@@ -6,6 +6,7 @@ from nltk import pos_tag
 from nltk.tokenize import sent_tokenize, word_tokenize
 from sentence_transformers import SentenceTransformer
 from torch import Tensor
+from transformers import PreTrainedTokenizer
 
 
 def sentence_ends_at_index(tokens: list[str], i: int) -> bool:
