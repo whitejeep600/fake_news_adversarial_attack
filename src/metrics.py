@@ -102,6 +102,9 @@ class SimilarityEvaluator:
         embeddings = [self.model.encode(text, convert_to_tensor=True) for text in [text1, text2]]
         return torch.cosine_similarity(embeddings[0], embeddings[1], dim=0).item()
 
+    def eval(self) -> None:
+        self.model.eval()
+
 
 class AttackSingleSampleMetrics:
     def __init__(

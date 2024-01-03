@@ -14,6 +14,9 @@ class GenerativeAttacker(AdversarialAttacker):
         self.tokenizer = BartTokenizer.from_pretrained(model_name)
         self.max_length = max_length
 
+    def parameters(self):
+        return self.bert.parameters()
+
     @classmethod
     def from_config(cls, config: dict) -> "GenerativeAttacker":
         return GenerativeAttacker(config["model_name"], int(config["max_length"]))
@@ -29,8 +32,8 @@ class GenerativeAttacker(AdversarialAttacker):
         self, batch: torch.Tensor, max_victim_length: int, reference_model: torch.nn.Module
     ) -> tuple[torch.Tensor, list[torch.Tensor], list[torch.Tensor]]:
         generated_ids: list[torch.Tensor] = []
-        token_logits: list[torch.Tensor] = []
-        scores: list = []
+        token_probabilities: list[torch.Tensor] = []
+        reference_probabilities: list = []
         for seq in batch:
             generation_config = GenerationConfig(
                 return_dict_in_generate=True,
@@ -44,18 +47,20 @@ class GenerativeAttacker(AdversarialAttacker):
             )
             new_ids = generation_output.sequences.squeeze(0)
             generated_ids.append(new_ids)
-            token_logits.append(
+            token_probabilities.append(
                 torch.Tensor(
                     [
-                        generation_output.scores[i][0][new_ids[i + 1]]
+                        torch.softmax(generation_output.scores[i][0], dim=0)[new_ids[i + 1]]
                         for i in range(len(generation_output.scores))
                     ]
                 )
             )
-            scores.append(
-                reference_model.compute_transition_scores(
-                    generation_output.sequences, generation_output.scores
-                ).squeeze(0)
+            reference_probabilities.append(
+                torch.exp(
+                    reference_model.compute_transition_scores(
+                        generation_output.sequences, generation_output.scores, normalize_logits=True
+                    ).squeeze(0)
+                )
             )
         all_token_ids = torch.stack(
             [
@@ -63,7 +68,7 @@ class GenerativeAttacker(AdversarialAttacker):
                 for ids in generated_ids
             ]
         )
-        return all_token_ids, token_logits, scores
+        return all_token_ids, token_probabilities, reference_probabilities
 
     def decode_prefixes(self, generated_ids) -> list[list[str]]:
         results: list[list[str]] = []

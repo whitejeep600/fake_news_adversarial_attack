@@ -41,12 +41,15 @@ attacks.generative:
   victim: welfake
   victim_weights_path: checkpoints/welfake_1e-5.pt
   n_epochs: 4
-  lr: 1e-4
+  attacker_lr: 1e-4
+  value_lr: 1e-4
   batch_size: 2
   save_path: checkpoints/generative.pt
   train_split_path: data/generative/train_with_logits.csv
   eval_split_path: data/generative/eval_with_logits.csv
   similarity_evaluator_name: flax-sentence-embeddings/all_datasets_v4_MiniLM-L6
+  value_model_name: prajjwal1/bert-tiny
+  #value_model_name: probably/something-less-tiny todo
 
 attacks.generative.precompute_victim_logits:
   train_split_path: data/welfake/train.csv
