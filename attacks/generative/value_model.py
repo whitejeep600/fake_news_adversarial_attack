@@ -15,7 +15,7 @@ class ValueModel(torch.nn.Module):
     #  calculate this, and simultaneously handle two sequences, each
     #  of potentially the longest possible length that this model
     #  can take
-    def get_value(self, generated_sequence: str, source_sequence: str) -> float:
+    def get_value(self, generated_sequence: str, source_sequence: str) -> torch.Tensor:
         tokenized_source = self.tokenizer(
             source_sequence,
             return_tensors="pt",
@@ -31,15 +31,15 @@ class ValueModel(torch.nn.Module):
             truncation=True,
         )
         source_outputs = self.bert(
-            input_ids=tokenized_source["input_ids"].flatten(),
-            attention_mask=tokenized_source["attention_mask"].flatten(),
+            input_ids=tokenized_source["input_ids"],
+            attention_mask=tokenized_source["attention_mask"],
         )
         source_pooled = source_outputs.pooler_output
         generated_outputs = self.bert(
-            input_ids=tokenized_generated["input_ids"].flatten(),
-            attention_mask=tokenized_generated["attention_mask"].flatten(),
+            input_ids=tokenized_generated["input_ids"],
+            attention_mask=tokenized_generated["attention_mask"],
         )
         generated_pooled = generated_outputs.pooler_output
 
-        logit = self.linear_to_logits(torch.concatenate((source_pooled, generated_pooled)))
-        return float(logit)
+        logit = self.linear_to_logit(torch.concatenate((source_pooled, generated_pooled), dim=1).flatten())
+        return logit

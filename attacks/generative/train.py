@@ -41,7 +41,7 @@ class PPOTrainer:
 
 
 def all_equal(values) -> bool:
-    return len(values) == 0 or all([len(value) == len(values[0]) for value in values])
+    return len(values) == 0 or all([value == values[0] for value in values])
 
 
 def train_iteration(
@@ -66,8 +66,9 @@ def train_iteration(
         desc="train iteration",
         leave=False,
     ):
+        # todo control frequency of reference model updates
         input_ids = batch["attacker_prompt_ids"].to(device)
-        generated_ids, token_probs, reference_probs = attacker.generate(
+        generated_ids, token_probs, reference_probs = attacker.generate_ids_and_probabilities(
             input_ids, common_max_length, ppo_trainer.reference_model.bert
         )
         batch_size = len(input_ids)
@@ -111,12 +112,11 @@ def train_iteration(
             target_label_probabilities[i] + similarity_scores[i] for i in range(len(batch_prefixes))
         ]
         values = [
-            torch.Tensor(
+            torch.concatenate(
                 [value_model.get_value(prefix, original_seq) for prefix in sample_prefixes]
             )
             for sample_prefixes, original_seq in zip(batch_prefixes, original_seqs)
         ]
-        pass
         max_generated_length = max([len(reward_tensor) for reward_tensor in rewards])
         discount_exponents = torch.pow(GAMMA * LAMBDA, torch.arange(max_generated_length))
         # Again following the notation and equations from Schulman et al.

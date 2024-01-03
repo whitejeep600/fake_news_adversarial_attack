@@ -28,13 +28,17 @@ class GenerativeAttacker(AdversarialAttacker):
         self.bert.eval()
 
     # todo this shouldn't be defined like this with passing the reference model, fix
-    def generate(
+    def generate_ids_and_probabilities(
         self, batch: torch.Tensor, max_victim_length: int, reference_model: torch.nn.Module
     ) -> tuple[torch.Tensor, list[torch.Tensor], list[torch.Tensor]]:
         generated_ids: list[torch.Tensor] = []
         token_probabilities: list[torch.Tensor] = []
         reference_probabilities: list = []
         for seq in batch:
+            # todo ensure there are gradients. Maybe create an own generate() function
+            #  with just the useful code from the original. Or if that fails,
+            #  use forward()
+            torch.set_grad_enabled(True)
             generation_config = GenerationConfig(
                 return_dict_in_generate=True,
                 output_scores=True,
@@ -48,11 +52,11 @@ class GenerativeAttacker(AdversarialAttacker):
             new_ids = generation_output.sequences.squeeze(0)
             generated_ids.append(new_ids)
             token_probabilities.append(
-                torch.Tensor(
+                torch.stack(
                     [
                         torch.softmax(generation_output.scores[i][0], dim=0)[new_ids[i + 1]]
                         for i in range(len(generation_output.scores))
-                    ]
+                    ],
                 )
             )
             reference_probabilities.append(
@@ -62,6 +66,7 @@ class GenerativeAttacker(AdversarialAttacker):
                     ).squeeze(0)
                 )
             )
+            # todo verify this is the same for every iteration
         all_token_ids = torch.stack(
             [
                 pad(ids, (0, max_victim_length - len(ids)), "constant", PADDING)
@@ -70,7 +75,7 @@ class GenerativeAttacker(AdversarialAttacker):
         )
         return all_token_ids, token_probabilities, reference_probabilities
 
-    def decode_prefixes(self, generated_ids) -> list[list[str]]:
+    def decode_prefixes(self, generated_ids: torch.Tensor) -> list[list[str]]:
         results: list[list[str]] = []
         for i in range(len(generated_ids)):
             results.append([])
