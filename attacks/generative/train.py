@@ -55,6 +55,7 @@ def train_iteration(
     similarity_evaluator: SimilarityEvaluator,
     value_model: ValueModel,
 ) -> None:
+    # todo get train value and policy loss, train rewards, train similarities, train fooling factors
     attacker.train()
     value_model.train()
     victim.eval()
@@ -96,13 +97,9 @@ def train_iteration(
             original_seqs = attacker.tokenizer.batch_decode(
                 batch["attacker_prompt_ids"], skip_special_tokens=True
             )
-            # todo use set_reference_text to save  s o m e  time and memory at least
             similarity_scores = [
                 torch.Tensor(
-                    [
-                        similarity_evaluator.evaluate(prefix, original_seq)
-                        for prefix in sample_prefixes
-                    ]
+                        similarity_evaluator.evaluate_prefixes(sample_prefixes, original_seq)
                 )
                 for sample_prefixes, original_seq in zip(batch_prefixes, original_seqs)
             ]
@@ -163,6 +160,9 @@ def eval_iteration(
     common_max_length: int,
     similarity_evaluator: SimilarityEvaluator,
 ) -> None:
+    # todo get eval policy loss, eval rewards, eval similarities, eval fooling factors,
+    #  eval success rate
+    #  save the model
     attacker.eval()
     # monitor all loss components separately (fooling, similarity etc.)
     pass

@@ -27,46 +27,59 @@ class GenerativeAttacker(AdversarialAttacker):
     def eval(self):
         self.bert.eval()
 
+    def generate_with_greedy_decoding(
+            self,
+            inputs: torch.Tensor,
+            max_length: int = 20
+    ) -> tuple[torch.Tensor, list[torch.Tensor]]:
+        """
+        Return a (sequence, scores) tuple where sequence is a tensor of shape (generation_len)
+        containing the ids of the generated sequence, and scores is a list of len generation_len,
+        whose each element is a tensor of shape [1, vocab_size] containing the predicted token
+        logits for each step.
+
+        """
+        decoded = torch.Tensor([[self.bert.config.decoder_start_token_id]]).int()
+        scores: list[torch.Tensor] = []
+        for _ in range(max_length - 1):
+            next_one = self.bert(
+                input_ids=inputs,
+                decoder_input_ids=decoded,
+            )
+            new_scores = next_one.logits[0][-1, :]
+            next_id = torch.argmax(new_scores, dim=-1)
+            decoded = torch.cat((decoded, torch.Tensor([[next_id]]).int()), dim=-1)
+            scores.append(new_scores.unsqueeze(0))
+            if next_id == self.bert.generation_config.eos_token_id:
+                break
+        return decoded.squeeze(0), scores
+
     # todo this shouldn't be defined like this with passing the reference model, fix
     def generate_ids_and_probabilities(
         self, batch: torch.Tensor, max_victim_length: int, reference_model: torch.nn.Module
     ) -> tuple[torch.Tensor, list[torch.Tensor], list[torch.Tensor]]:
+        torch.set_grad_enabled(True)
         generated_ids: list[torch.Tensor] = []
         token_probabilities: list[torch.Tensor] = []
         reference_probabilities: list = []
         for seq in batch:
-            # todo ensure there are gradients. Maybe create an own generate() function
-            #  with just the useful code from the original. Or if that fails,
-            #  use forward()
-            torch.set_grad_enabled(True)
-            generation_config = GenerationConfig(
-                return_dict_in_generate=True,
-                output_scores=True,
-                # min_length=int(0.7 * len(seq)),
-                # todo debug max_length=min(int(1.3 * len(seq)), max_victim_length),
-                max_length=20,
-            )
-            generation_output = self.bert.generate(
-                seq.unsqueeze(0), generation_config=generation_config
-            )
-            new_ids = generation_output.sequences.squeeze(0)
+            new_ids, scores = self.generate_with_greedy_decoding(seq.unsqueeze(0), 20)
             generated_ids.append(new_ids)
             token_probabilities.append(
                 torch.stack(
                     [
-                        torch.softmax(generation_output.scores[i][0], dim=0)[new_ids[i + 1]]
-                        for i in range(len(generation_output.scores))
+                        torch.softmax(scores[i][0], dim=0)[new_ids[i + 1]]
+                        for i in range(len(scores))
                     ],
                 )
             )
             reference_probabilities.append(
                 torch.exp(
                     reference_model.compute_transition_scores(
-                        generation_output.sequences, generation_output.scores, normalize_logits=True
+                        new_ids.unsqueeze(0), scores, normalize_logits=True
                     ).squeeze(0)
                 )
             )
-            # todo verify this is the same for every iteration
         all_token_ids = torch.stack(
             [
                 pad(ids, (0, max_victim_length - len(ids)), "constant", PADDING)

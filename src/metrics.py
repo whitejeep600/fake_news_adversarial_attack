@@ -6,7 +6,6 @@ from nltk import pos_tag
 from nltk.tokenize import sent_tokenize, word_tokenize
 from sentence_transformers import SentenceTransformer
 from torch import Tensor
-from transformers import PreTrainedTokenizer
 
 
 def sentence_ends_at_index(tokens: list[str], i: int) -> bool:
@@ -94,13 +93,21 @@ class SimilarityEvaluator:
         )
         return torch.cosine_similarity(original_encoding, substituted_encoding, dim=0).item()
 
-    def compare_to_reference(self, text):
+    def compare_to_reference(self, text: str) -> float:
         text_encoding = self.model.encode(text, convert_to_tensor=True)
         return torch.cosine_similarity(self.whole_reference_encoding, text_encoding, dim=0).item()
 
     def evaluate(self, text1: str, text2: str) -> float:
         embeddings = [self.model.encode(text, convert_to_tensor=True) for text in [text1, text2]]
         return torch.cosine_similarity(embeddings[0], embeddings[1], dim=0).item()
+
+    def evaluate_prefixes(self, prefixes: list[str], text: str) -> list[float]:
+        self.whole_reference_encoding = self.model.encode(text, convert_to_tensor=True)
+        result = [
+            self.compare_to_reference(prefix) for prefix in prefixes
+        ]
+        self.reset_reference_text()
+        return result
 
     def eval(self) -> None:
         self.model.eval()
