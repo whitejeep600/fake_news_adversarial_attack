@@ -28,9 +28,7 @@ class GenerativeAttacker(AdversarialAttacker):
         self.bert.eval()
 
     def generate_with_greedy_decoding(
-            self,
-            inputs: torch.Tensor,
-            max_length: int = 20
+        self, inputs: torch.Tensor, max_length: int = 20
     ) -> tuple[torch.Tensor, list[torch.Tensor]]:
         """
         Return a (sequence, scores) tuple where sequence is a tensor of shape (generation_len)
@@ -54,52 +52,20 @@ class GenerativeAttacker(AdversarialAttacker):
                 break
         return decoded.squeeze(0), scores
 
-    # todo this shouldn't be defined like this with passing the reference model, fix
-    def generate_ids_and_probabilities(
-        self, batch: torch.Tensor, max_victim_length: int, reference_model: torch.nn.Module
-    ) -> tuple[torch.Tensor, list[torch.Tensor], list[torch.Tensor]]:
-        torch.set_grad_enabled(True)
-        generated_ids: list[torch.Tensor] = []
-        token_probabilities: list[torch.Tensor] = []
-        reference_probabilities: list = []
-        for seq in batch:
-            new_ids, scores = self.generate_with_greedy_decoding(seq.unsqueeze(0), 20)
-            generated_ids.append(new_ids)
-            token_probabilities.append(
-                torch.stack(
-                    [
-                        torch.softmax(scores[i][0], dim=0)[new_ids[i + 1]]
-                        for i in range(len(scores))
-                    ],
-                )
-            )
-            reference_probabilities.append(
-                torch.exp(
-                    reference_model.compute_transition_scores(
-                        new_ids.unsqueeze(0), scores, normalize_logits=True
-                    ).squeeze(0)
-                )
-            )
-        all_token_ids = torch.stack(
-            [
-                pad(ids, (0, max_victim_length - len(ids)), "constant", PADDING)
-                for ids in generated_ids
-            ]
-        )
-        return all_token_ids, token_probabilities, reference_probabilities
-
-    def decode_prefixes(self, generated_ids: torch.Tensor) -> list[list[str]]:
+    def decode_prefixes(self, generated_ids: list[torch.Tensor]) -> list[list[str]]:
         results: list[list[str]] = []
-        for i in range(len(generated_ids)):
+        for sequence_ind in range(len(generated_ids)):
             results.append([])
-            decoded_length = -1
-            for j in range(len(generated_ids[i])):
+            previous_decoded_length = -1
+            for prefix_length in range(len(generated_ids[sequence_ind])):
                 prefix = self.tokenizer.batch_decode(
-                    [generated_ids[i][: j + 1]], skip_special_tokens=True
+                    [generated_ids[sequence_ind][: prefix_length + 1]], skip_special_tokens=True
                 )[0]
-                if len(prefix) == decoded_length:
+                if len(prefix) == previous_decoded_length:
                     break
+                    # Break when decoded sequence length stops increasing - otherwise
+                    # we'd be decoding the padding
                 if len(prefix) != 0:
-                    decoded_length = len(prefix)
+                    previous_decoded_length = len(prefix)
                     results[-1].append(prefix)
         return results

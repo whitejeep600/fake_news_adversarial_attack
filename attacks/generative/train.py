@@ -4,6 +4,7 @@ from typing import Any
 
 import torch
 import yaml
+from numpy import mean
 from torch.optim import AdamW, Optimizer
 from torch.utils.data import DataLoader
 from tqdm import tqdm
@@ -22,101 +23,195 @@ GAMMA = 0.99
 # Generalized Advantage Estimation factor
 LAMBDA = 0.95
 
-# Clipping threshold
+# Policy update clipping threshold
 EPSILON = 0.2
 
 # 2000 years and we're still using Greek if we want something to sound smart.
 
+TRAIN = "train"
+EVAL = "eval"
 
-# todo this is not really what this class does, do away with it or
-#  write a new one that will be useful for different trainings
-class PPOTrainer:
-    def __init__(self, model: GenerativeAttacker):
-        self.reference_model = copy.deepcopy(model)
-        self.reference_model.eval()
-
-    def set_reference_model(self, model: GenerativeAttacker):
-        self.reference_model = copy.deepcopy(model)
-        self.reference_model.eval()
+MODES = [TRAIN, EVAL]
 
 
-def all_equal(values) -> bool:
-    return len(values) == 0 or all([value == values[0] for value in values])
+class MetricLogger:
+    def __init__(self, save_dir: Path):
+        self.save_dir = save_dir
+        self.rewards: dict[str, list[float]] = {
+            TRAIN: [],
+            EVAL: [],
+        }
+        self.policy_losses: dict[str, list[float]] = {
+            TRAIN: [],
+            EVAL: [],
+        }
+        self.value_losses: dict[str, list[float]] = {
+            TRAIN: [],
+            EVAL: [],
+        }
+        self.fooling_factors: dict[str, list[float]] = {
+            TRAIN: [],
+            EVAL: [],
+        }
+        self.similarity_scores: dict[str, list[float]] = {
+            TRAIN: [],
+            EVAL: [],
+        }
+        self.success_rates: dict[str, list[float]] = {
+            TRAIN: [],
+            EVAL: [],
+        }
+        self.epochs_elapsed = 0
 
-
-def train_iteration(
-    attacker: GenerativeAttacker,
-    victim: FakeNewsDetector,
-    dataloader: DataLoader,
-    attacker_optimizer: Optimizer,
-    value_optimizer: Optimizer,
-    device: str,
-    common_max_length: int,
-    similarity_evaluator: SimilarityEvaluator,
-    value_model: ValueModel,
-) -> None:
-    # todo get train value and policy loss, train rewards, train similarities, train fooling factors
-    attacker.train()
-    value_model.train()
-    victim.eval()
-    similarity_evaluator.eval()
-    ppo_trainer = PPOTrainer(attacker)
-    for batch in tqdm(
-        dataloader,
-        total=len(dataloader),
-        desc="train iteration",
-        leave=False,
-    ):
-        # todo control frequency of reference model updates
-        input_ids = batch["attacker_prompt_ids"].to(device)
-        generated_ids, token_probs, reference_probs = attacker.generate_ids_and_probabilities(
-            input_ids, common_max_length, ppo_trainer.reference_model.bert
+    def add_epoch_metrics(
+        self,
+        epoch_mean_reward: float,
+        epoch_mean_policy_loss: float,
+        epoch_mean_value_loss: float,
+        epoch_mean_fooling_factor: float,
+        epoch_mean_similarity_score: float,
+        epoch_success_rate: float,
+        mode: str
+    ) -> None:
+        assert mode in MODES, f"unsupported mode, expected one of {MODES}"
+        self.rewards[mode].append(epoch_mean_reward)
+        self.policy_losses[mode].append(epoch_mean_policy_loss)
+        self.value_losses[mode].append(epoch_mean_value_loss)
+        self.fooling_factors[mode].append(epoch_mean_fooling_factor)
+        self.similarity_scores[mode].append(epoch_mean_similarity_score)
+        self.success_rates[mode].append(epoch_success_rate)
+        print(
+            f"Epoch {self.epochs_elapsed},"
+            f" this epoch's mean {mode} reward: {epoch_mean_reward},"
+            f" mean {mode} policy loss {epoch_mean_policy_loss},"
+            f" mean {mode} value loss{epoch_mean_value_loss},"
+            f" mean {mode} fooling factor: {epoch_mean_fooling_factor},"
+            f" mean {mode} similarity score: {epoch_mean_similarity_score},"
+            f" mean {mode} success rate: {epoch_success_rate}.\n"
         )
-        batch_size = len(input_ids)
-        batch_prefixes = attacker.decode_prefixes(generated_ids)
-        victim_classification_probabilities: list[torch.Tensor] = []
-        for i in range(len(batch_prefixes)):
-            assert all_equal([len(token_probs[i]), len(reference_probs[i]), len(batch_prefixes[i])])
-        with torch.no_grad():
-            for sample_prefixes in batch_prefixes:
-                sample_probabilities: list[torch.Tensor] = []
-                for prefix in sample_prefixes:
-                    sample_probabilities.append(victim.get_probabilities(prefix))
-                victim_classification_probabilities.append(torch.stack(sample_probabilities))
-            target_labels = 1 - batch["label"]
-            target_label_probabilities = [
+        self.epochs_elapsed += 1
+
+    def plot(self) -> None:
+        plots_path = self.save_dir / "plots"
+        plots_path.mkdir(parents=True, exist_ok=True)
+        # todo
+
+    def save_logs(self) -> None:
+        logs_path = self.save_dir / "log.txt"
+        with open(logs_path, "w") as f:
+            pass  # todo
+
+    def save_summary(self) -> None:
+        summary_path = self.save_dir / "summary.txt"
+        with open(summary_path, "w") as f:
+            pass  # todo
+
+
+class PPOTrainer:
+    def __init__(
+        self,
+        trained_model: GenerativeAttacker,
+        reference_model: GenerativeAttacker,
+        value_model: ValueModel,
+        victim_model: FakeNewsDetector,
+        similarity_evaluator: SimilarityEvaluator,
+        attacker_optimizer: Optimizer,
+        value_optimizer: Optimizer,
+    ):
+        self.trained_model = trained_model
+        self.reference_model = copy.deepcopy(reference_model)
+        self.value_model = value_model
+        self.victim_model = victim_model
+        self.similarity_evaluator = similarity_evaluator
+        self.attacker_optimizer = attacker_optimizer
+        self.value_optimizer = value_optimizer
+
+    def freeze_reference_model(self):
+        self.reference_model = copy.deepcopy(self.trained_model)
+        self.reference_model.eval()
+
+    def decode_tokens_and_get_logits(
+        self, batch: torch.Tensor, max_length: int
+    ) -> tuple[list[torch.Tensor], list[torch.Tensor], list[torch.Tensor]]:
+        torch.set_grad_enabled(True)
+        generated_ids: list[torch.Tensor] = []
+        token_probabilities: list[torch.Tensor] = []
+        reference_probabilities: list = []
+        for seq in batch:
+            # todo new_ids, scores = self.generate_with_greedy_decoding(seq.unsqueeze(0), max_length)
+            new_ids, scores = self.trained_model.generate_with_greedy_decoding(seq.unsqueeze(0), 20)
+            generated_ids.append(new_ids)
+            token_probabilities.append(
                 torch.stack(
                     [
-                        victim_classification_probabilities[i][j][target_labels[i]]
-                        for j in range(len(victim_classification_probabilities[i]))
-                    ]
+                        torch.softmax(scores[i][0], dim=0)[new_ids[i + 1]]
+                        for i in range(len(scores))
+                    ],
                 )
-                for i in range(batch_size)
-            ]
-
-            original_seqs = attacker.tokenizer.batch_decode(
-                batch["attacker_prompt_ids"], skip_special_tokens=True
             )
-            similarity_scores = [
-                torch.Tensor(
-                        similarity_evaluator.evaluate_prefixes(sample_prefixes, original_seq)
+            reference_probabilities.append(
+                torch.exp(
+                    self.reference_model.bert.compute_transition_scores(
+                        new_ids.unsqueeze(0), scores, normalize_logits=True
+                    ).squeeze(0)
                 )
-                for sample_prefixes, original_seq in zip(batch_prefixes, original_seqs)
-            ]
+            )
+        return generated_ids, token_probabilities, reference_probabilities
 
-        # todo maybe include naturalness as well but tbd
-        rewards = [
-            target_label_probabilities[i] + similarity_scores[i] for i in range(len(batch_prefixes))
+    def decode_prefixes(self, generated_ids: list[torch.Tensor]) -> list[list[str]]:
+        return self.trained_model.decode_prefixes(generated_ids)
+
+    def get_fooling_factors(
+        self, batch_prefixes: list[list[str]], target_labels: torch.Tensor
+    ) -> list[torch.Tensor]:
+        victim_classification_probabilities: list[torch.Tensor] = []
+        for sample_prefixes in batch_prefixes:
+            sample_probabilities: list[torch.Tensor] = []
+            for prefix in sample_prefixes:
+                sample_probabilities.append(self.victim_model.get_probabilities(prefix))
+            victim_classification_probabilities.append(torch.stack(sample_probabilities))
+        # i.e. target label probabilities
+        fooling_factors = [
+            torch.stack(
+                [
+                    victim_classification_probabilities[i][j][target_labels[i]]
+                    for j in range(len(victim_classification_probabilities[i]))
+                ]
+            )
+            for i in range(len(batch_prefixes))
         ]
-        values = [
+        return fooling_factors
+
+    def get_similarity_scores(
+        self, batch_prefixes: list[list[str]], original_seqs: list[str]
+    ) -> list[torch.Tensor]:
+        similarity_scores = [
+            torch.Tensor(self.similarity_evaluator.evaluate_prefixes(sample_prefixes, original_seq))
+            for sample_prefixes, original_seq in zip(batch_prefixes, original_seqs)
+        ]
+        return similarity_scores
+
+    def get_value_function_scores(
+        self, batch_prefixes: list[list[str]], original_seqs: list[str]
+    ) -> list[torch.Tensor]:
+        return [
             torch.concatenate(
-                [value_model.get_value(prefix, original_seq) for prefix in sample_prefixes]
+                [self.value_model.get_value(prefix, original_seq) for prefix in sample_prefixes]
             )
             for sample_prefixes, original_seq in zip(batch_prefixes, original_seqs)
         ]
+
+    def get_clipped_objectives(
+        self,
+        rewards: list[torch.Tensor],
+        values: list[torch.Tensor],
+        token_probs: list[torch.Tensor],
+        reference_probs: list[torch.Tensor],
+    ) -> list[torch.Tensor]:
         max_generated_length = max([len(reward_tensor) for reward_tensor in rewards])
         discount_exponents = torch.pow(GAMMA * LAMBDA, torch.arange(max_generated_length))
-        # Again following the notation and equations from Schulman et al.
+        # Again, following the notation and equations from Schulman et al.
+        batch_size = len(rewards)
         gammas = [
             rewards[i][:-1] + GAMMA * values[i][1:] - values[i][:-1] for i in range(batch_size)
         ]
@@ -137,38 +232,140 @@ def train_iteration(
             torch.minimum(ratios[i] * advantages[i], clipped_ratios[i] * advantages[i])
             for i in range(batch_size)
         ]
+        return clipped_objectives
 
-        policy_loss = torch.mean(torch.concatenate(clipped_objectives))
-        attacker_optimizer.zero_grad()
+    def get_policy_loss(self, clipped_objectives: list[torch.Tensor]) -> torch.Tensor:
+        policy_loss = -1 * torch.mean(torch.concatenate(clipped_objectives))
+        return policy_loss
+
+    def policy_loss_step(self, policy_loss: torch.Tensor) -> None:
+        self.attacker_optimizer.zero_grad()
         policy_loss.backward()
-        attacker_optimizer.step()
+        self.attacker_optimizer.step()
 
+    def get_value_loss(self, rewards: list[torch.Tensor], values: list[torch.Tensor]) -> torch.Tensor:
         value_loss = torch.mean(
             torch.concatenate([values[i] - rewards[i][-1] for i in range(batch_size)])
         )
-        value_optimizer.zero_grad()
+        return value_loss
+
+    def value_loss_step(self, value_loss: torch.Tensor) -> None:
+        self.value_optimizer.zero_grad()
         value_loss.backward()
-        value_optimizer.step()
+        self.value_optimizer.step()
+
+    def train(self) -> None:
+        self.trained_model.train()
+        self.value_model.train()
+        self.reference_model.eval()
+        self.victim_model.train()
+        self.similarity_evaluator.eval()
+
+    def eval(self) -> None:
+        self.trained_model.eval()
+        self.value_model.eval()
+        self.reference_model.eval()
+        self.victim_model.train()
+        self.similarity_evaluator.eval()
+
+    def set_mode(self, mode: str):
+        assert mode in MODES, f"unsupported mode, expected one of {MODES}"
+        if mode == TRAIN:
+            self.train()
+        else:
+            self.eval()
+
+    def save_trained_model(self, path: Path) -> None:
+        torch.save(self.trained_model.bert.state_dict(), path)
+        # todo maybe also save the value model
 
 
-def eval_iteration(
-    attacker: GenerativeAttacker,
-    victim: FakeNewsDetector,
+def all_equal(values) -> bool:
+    return len(values) == 0 or all([value == values[0] for value in values])
+
+
+def iteration(
+    ppo_trainer: PPOTrainer,
     dataloader: DataLoader,
-    save_path: Path,
     device: str,
     common_max_length: int,
-    similarity_evaluator: SimilarityEvaluator,
-) -> None:
-    # todo get eval policy loss, eval rewards, eval similarities, eval fooling factors,
-    #  eval success rate
-    #  save the model
-    attacker.eval()
-    # monitor all loss components separately (fooling, similarity etc.)
-    pass
-    # get an article from the dataset
-    # generate response to it (feed with label), retain logits
-    # measure eval loss, avg. similarity, fooling factor, naturalness
+    metric_logger: MetricLogger,
+    mode: str
+) -> float:
+    assert mode in MODES, f"unsupported mode, expected one of {MODES}"
+    ppo_trainer.set_mode(mode)
+    ppo_trainer.freeze_reference_model()
+
+    epoch_policy_losses: list[float] = []
+    epoch_value_losses: list[float] = []
+    epoch_rewards: list[float] = []
+    epoch_fooling_factors: list[float] = []
+    epoch_similarity_scores: list[float] = []
+
+    n_total_successful_attacks = 0
+
+    for batch in tqdm(
+        dataloader,
+        total=len(dataloader),
+        desc=f"{mode} iteration",
+        leave=False,
+    ):
+        # todo control the frequency of reference model updates
+        input_ids = batch["attacker_prompt_ids"].to(device)
+        generated_ids, token_probs, reference_probs = ppo_trainer.decode_tokens_and_get_logits(
+            input_ids, common_max_length
+        )
+        batch_prefixes = ppo_trainer.decode_prefixes(generated_ids)
+
+        for i in range(len(batch_prefixes)):
+            assert all_equal([len(token_probs[i]), len(reference_probs[i]), len(batch_prefixes[i])])
+
+        original_seqs = batch["attacker_prompt"]
+
+        with torch.no_grad():
+            fooling_factors = ppo_trainer.get_fooling_factors(batch_prefixes, 1 - batch["label"])
+            similarity_scores = ppo_trainer.get_similarity_scores(batch_prefixes, original_seqs)
+
+        n_total_successful_attacks += torch.sum(fooling_factors > 0.5).item()
+
+        rewards = [
+            fooling_factors[i] + similarity_scores[i] for i in range(len(batch_prefixes))
+        ]
+
+        values = ppo_trainer.get_value_function_scores(batch_prefixes, original_seqs)
+
+        clipped_objectives = ppo_trainer.get_clipped_objectives(
+            rewards, values, token_probs, reference_probs
+        )
+
+        policy_loss = ppo_trainer.get_policy_loss(clipped_objectives)
+        value_loss = ppo_trainer.get_value_loss(rewards, values)
+
+        if mode == TRAIN:
+            ppo_trainer.policy_loss_step(policy_loss)
+            ppo_trainer.value_loss_step(value_loss)
+
+        epoch_policy_losses.append(policy_loss.item())
+        epoch_value_losses.append(value_loss.item())
+
+        final_rewards = [reward[-1].item() for reward in rewards]
+
+        epoch_rewards.append(torch.mean(torch.concatenate(final_rewards, dim=0)).item())
+        epoch_fooling_factors.append(torch.mean(torch.concatenate(fooling_factors, dim=0)).item())
+        epoch_fooling_factors.append(torch.mean(torch.concatenate(similarity_scores, dim=0)).item())
+
+    mean_final_reward = mean(epoch_rewards)
+    success_rate = n_total_successful_attacks / len(dataloader.dataset)
+    metric_logger.add_epoch_metrics(
+        mean_final_reward,
+        mean(epoch_policy_losses),
+        mean(epoch_value_losses),
+        mean(epoch_fooling_factors),
+        mean(epoch_similarity_scores),
+        success_rate,
+        TRAIN
+    )
+    return mean_final_reward
 
 
 def train(
@@ -179,7 +376,7 @@ def train(
     n_epochs: int,
     attacker_lr: float,
     value_lr: float,
-    save_path: Path,
+    save_dir: Path,
     device: str,
     common_max_length: int,
     similarity_evaluator: SimilarityEvaluator,
@@ -187,27 +384,42 @@ def train(
 ) -> None:
     attacker_optimizer = AdamW(attacker.parameters(), lr=attacker_lr)
     value_optimizer = AdamW(value_model.parameters(), lr=value_lr)
-    for i in tqdm(range(n_epochs), desc="training..."):
-        train_iteration(
-            attacker,
-            victim,
+    metric_logger = MetricLogger(save_dir)
+
+    save_dir.mkdir(exist_ok=True, parents=True)
+    model_save_path = save_dir / "ckpt.pt"
+
+    ppo_trainer = PPOTrainer(
+        attacker,
+        attacker,
+        value_model,
+        victim,
+        similarity_evaluator,
+        attacker_optimizer,
+        value_optimizer,
+    )
+    best_mean_final_rewards = 0.0
+
+    for _ in tqdm(range(n_epochs), desc="training..."):
+        iteration(
+            ppo_trainer,
             train_dataloader,
-            attacker_optimizer,
-            value_optimizer,
             device,
             common_max_length,
-            similarity_evaluator,
-            value_model,
+            metric_logger,
+            TRAIN
         )
-        eval_iteration(
-            attacker,
-            victim,
+        new_mean_final_rewards = iteration(
+            ppo_trainer,
             eval_dataloader,
-            save_path,
             device,
             common_max_length,
-            similarity_evaluator,
+            metric_logger,
+            EVAL
         )
+        if new_mean_final_rewards > best_mean_final_rewards:
+            best_mean_final_rewards = new_mean_final_rewards
+            ppo_trainer.save_trained_model(model_save_path)
 
 
 def main(
@@ -221,7 +433,7 @@ def main(
     attacker_lr: float,
     value_lr: float,
     batch_size: int,
-    save_path: Path,
+    save_dir: Path,
     similarity_evaluator_name: str,
     value_model_name: str,
 ) -> None:
@@ -231,6 +443,7 @@ def main(
     victim.load_state_dict(torch.load(victim_weights_path, map_location=torch.device(device)))
     victim.to(device)
     victim.eval()
+    # todo make sure this doesn't die on gpu
     attacker = GenerativeAttacker.from_config(attacker_config)
     similarity_evaluator = SimilarityEvaluator(similarity_evaluator_name, device)
 
@@ -264,7 +477,7 @@ def main(
         n_epochs,
         attacker_lr,
         value_lr,
-        save_path,
+        save_dir,
         device,
         common_max_length,
         similarity_evaluator,
@@ -284,7 +497,7 @@ if __name__ == "__main__":
     attacker_lr = float(generative_params["attacker_lr"])
     value_lr = float(generative_params["value_lr"])
     batch_size = int(generative_params["batch_size"])
-    save_path = Path(generative_params["save_path"])
+    save_dir = Path(generative_params["save_dir"])
     similarity_evaluator_name = generative_params["similarity_evaluator_name"]
     value_model_name = generative_params["value_model_name"]
     main(
@@ -298,7 +511,7 @@ if __name__ == "__main__":
         attacker_lr,
         value_lr,
         batch_size,
-        save_path,
+        save_dir,
         similarity_evaluator_name,
         value_model_name,
     )

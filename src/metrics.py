@@ -103,14 +103,15 @@ class SimilarityEvaluator:
 
     def evaluate_prefixes(self, prefixes: list[str], text: str) -> list[float]:
         self.whole_reference_encoding = self.model.encode(text, convert_to_tensor=True)
-        result = [
-            self.compare_to_reference(prefix) for prefix in prefixes
-        ]
+        result = [self.compare_to_reference(prefix) for prefix in prefixes]
         self.reset_reference_text()
         return result
 
     def eval(self) -> None:
         self.model.eval()
+
+    def train(self) -> None:
+        self.model.train()
 
 
 class AttackSingleSampleMetrics:

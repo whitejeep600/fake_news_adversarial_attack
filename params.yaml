@@ -44,7 +44,7 @@ attacks.generative:
   attacker_lr: 1e-4
   value_lr: 1e-4
   batch_size: 2
-  save_path: checkpoints/generative.pt
+  save_dir: checkpoints/generative
   train_split_path: data/generative/train_with_logits.csv
   eval_split_path: data/generative/eval_with_logits.csv
   similarity_evaluator_name: flax-sentence-embeddings/all_datasets_v4_MiniLM-L6

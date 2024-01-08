@@ -27,6 +27,7 @@ class WelfakeDataset(FakeNewsDetectorDataset):
         dataset_csv_path: Path,
         tokenizer: PreTrainedTokenizer,
         max_length: int,
+        # todo this should be decoupled
         include_logits: bool = False,
         attacker_tokenizer: PreTrainedTokenizer | None = None,
     ):
@@ -86,10 +87,14 @@ class WelfakeDataset(FakeNewsDetectorDataset):
                 padding="max_length",
                 truncation=True,
             )
+            original_seq = self.attacker_tokenizer.decode(
+                tokenized_prompt["input_ids"].flatten(), skip_special_tokens=True
+            )
             return_dict.update(
                 {
                     "logits": torch.tensor([true_logit, fake_logit]),
                     "attacker_prompt_ids": tokenized_prompt["input_ids"].flatten(),
+                    "attacker_prompt": original_seq,
                 }
             )
         return return_dict

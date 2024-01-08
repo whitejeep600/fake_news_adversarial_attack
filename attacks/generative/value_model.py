@@ -41,5 +41,7 @@ class ValueModel(torch.nn.Module):
         )
         generated_pooled = generated_outputs.pooler_output
 
-        logit = self.linear_to_logit(torch.concatenate((source_pooled, generated_pooled), dim=1).flatten())
+        logit = self.linear_to_logit(
+            torch.concatenate((source_pooled, generated_pooled), dim=1).flatten()
+        )
         return logit
