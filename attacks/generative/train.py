@@ -1,9 +1,12 @@
 import copy
+import json
+import time
 from pathlib import Path
 from typing import Any
 
 import torch
 import yaml
+from matplotlib import pyplot as plt
 from numpy import mean
 from torch.optim import AdamW, Optimizer
 from torch.utils.data import DataLoader
@@ -15,7 +18,6 @@ from models.base import FakeNewsDetector
 from src.evaluate_attack import DATASETS_DICT, MODELS_DICT
 from src.metrics import SimilarityEvaluator
 from src.torch_utils import get_available_torch_device
-
 
 # Discount factor, following the notation from the original PPO paper by Schulman et al.
 GAMMA = 0.99
@@ -63,6 +65,16 @@ class MetricLogger:
         }
         self.epochs_elapsed = 0
 
+        self.all_data = {
+            "rewards": self.rewards,
+            "policy_losses": self.policy_losses,
+            "value_losses": self.value_losses,
+            "fooling_factors": self.fooling_factors,
+            "similarity_scores": self.similarity_scores,
+            "success_rates": self.success_rates,
+        }
+        self.train_start_time = time.time()
+
     def add_epoch_metrics(
         self,
         epoch_mean_reward: float,
@@ -71,7 +83,7 @@ class MetricLogger:
         epoch_mean_fooling_factor: float,
         epoch_mean_similarity_score: float,
         epoch_success_rate: float,
-        mode: str
+        mode: str,
     ) -> None:
         assert mode in MODES, f"unsupported mode, expected one of {MODES}"
         self.rewards[mode].append(epoch_mean_reward)
@@ -89,22 +101,40 @@ class MetricLogger:
             f" mean {mode} similarity score: {epoch_mean_similarity_score},"
             f" mean {mode} success rate: {epoch_success_rate}.\n"
         )
-        self.epochs_elapsed += 1
+        if mode == EVAL:
+            self.epochs_elapsed += 1
 
-    def plot(self) -> None:
+    def save_plots(self) -> None:
         plots_path = self.save_dir / "plots"
         plots_path.mkdir(parents=True, exist_ok=True)
-        # todo
+        for variable in self.all_data.keys():
+            for mode in MODES:
+                title = f"{mode}_{variable}"
+                plt.title(title)
+                plt.plot(self.all_data[variable][mode])
+                plt.xlabel("iteration")
+                plt.savefig(plots_path / f"{title}.jpg")
 
     def save_logs(self) -> None:
         logs_path = self.save_dir / "log.txt"
         with open(logs_path, "w") as f:
-            pass  # todo
+            f.write(json.dumps(self.all_data, indent=4))
 
-    def save_summary(self) -> None:
+    def save_summary(self, best_epoch_no: int) -> None:
+        time_now = time.time()
+        time_elapsed = time.gmtime(time_now - self.train_start_time)
+
         summary_path = self.save_dir / "summary.txt"
+        best_epoch_stats = {
+            key: self.all_data[key][EVAL][best_epoch_no] for key in self.all_data.keys()
+        }
+        summary = (
+            f"Training time: {time.strftime('%H:%M:%S', time_elapsed)}"
+            f" Number of epochs elapsed: {self.epochs_elapsed}, best stats (final rewards)"
+            f" for epoch {best_epoch_no}, as follows: {best_epoch_stats}"
+        )
         with open(summary_path, "w") as f:
-            pass  # todo
+            f.write(summary)
 
 
 class PPOTrainer:
@@ -138,8 +168,10 @@ class PPOTrainer:
         token_probabilities: list[torch.Tensor] = []
         reference_probabilities: list = []
         for seq in batch:
-            # todo new_ids, scores = self.generate_with_greedy_decoding(seq.unsqueeze(0), max_length)
-            new_ids, scores = self.trained_model.generate_with_greedy_decoding(seq.unsqueeze(0), 20)
+            max_length = 20  # todo
+            new_ids, scores = self.trained_model.generate_with_greedy_decoding(
+                seq.unsqueeze(0), max_length
+            )
             generated_ids.append(new_ids)
             token_probabilities.append(
                 torch.stack(
@@ -235,6 +267,7 @@ class PPOTrainer:
         return clipped_objectives
 
     def get_policy_loss(self, clipped_objectives: list[torch.Tensor]) -> torch.Tensor:
+        # gradient ascent
         policy_loss = -1 * torch.mean(torch.concatenate(clipped_objectives))
         return policy_loss
 
@@ -243,7 +276,9 @@ class PPOTrainer:
         policy_loss.backward()
         self.attacker_optimizer.step()
 
-    def get_value_loss(self, rewards: list[torch.Tensor], values: list[torch.Tensor]) -> torch.Tensor:
+    def get_value_loss(
+        self, rewards: list[torch.Tensor], values: list[torch.Tensor]
+    ) -> torch.Tensor:
         value_loss = torch.mean(
             torch.concatenate([values[i] - rewards[i][-1] for i in range(batch_size)])
         )
@@ -290,11 +325,13 @@ def iteration(
     device: str,
     common_max_length: int,
     metric_logger: MetricLogger,
-    mode: str
+    mode: str,
 ) -> float:
     assert mode in MODES, f"unsupported mode, expected one of {MODES}"
+
     ppo_trainer.set_mode(mode)
-    ppo_trainer.freeze_reference_model()
+    if mode == TRAIN:
+        ppo_trainer.freeze_reference_model()
 
     epoch_policy_losses: list[float] = []
     epoch_value_losses: list[float] = []
@@ -302,7 +339,7 @@ def iteration(
     epoch_fooling_factors: list[float] = []
     epoch_similarity_scores: list[float] = []
 
-    n_total_successful_attacks = 0
+    n_successful_attacks = 0
 
     for batch in tqdm(
         dataloader,
@@ -310,7 +347,6 @@ def iteration(
         desc=f"{mode} iteration",
         leave=False,
     ):
-        # todo control the frequency of reference model updates
         input_ids = batch["attacker_prompt_ids"].to(device)
         generated_ids, token_probs, reference_probs = ppo_trainer.decode_tokens_and_get_logits(
             input_ids, common_max_length
@@ -326,10 +362,12 @@ def iteration(
             fooling_factors = ppo_trainer.get_fooling_factors(batch_prefixes, 1 - batch["label"])
             similarity_scores = ppo_trainer.get_similarity_scores(batch_prefixes, original_seqs)
 
-        n_total_successful_attacks += torch.sum(fooling_factors > 0.5).item()
+        n_successful_attacks += sum(
+            [sample_fooling_factors[-1].item() > 0.5 for sample_fooling_factors in fooling_factors]
+        )
 
         rewards = [
-            fooling_factors[i] + similarity_scores[i] for i in range(len(batch_prefixes))
+            (fooling_factors[i] + similarity_scores[i]) / 2 for i in range(len(batch_prefixes))
         ]
 
         values = ppo_trainer.get_value_function_scores(batch_prefixes, original_seqs)
@@ -350,20 +388,24 @@ def iteration(
 
         final_rewards = [reward[-1].item() for reward in rewards]
 
-        epoch_rewards.append(torch.mean(torch.concatenate(final_rewards, dim=0)).item())
-        epoch_fooling_factors.append(torch.mean(torch.concatenate(fooling_factors, dim=0)).item())
-        epoch_fooling_factors.append(torch.mean(torch.concatenate(similarity_scores, dim=0)).item())
+        epoch_rewards.append(float(mean(final_rewards)))
+        epoch_fooling_factors.append(
+            float(torch.mean(torch.concatenate(fooling_factors, dim=0)).item())
+        )
+        epoch_fooling_factors.append(
+            float(torch.mean(torch.concatenate(similarity_scores, dim=0)).item())
+        )
 
-    mean_final_reward = mean(epoch_rewards)
-    success_rate = n_total_successful_attacks / len(dataloader.dataset)
+    mean_final_reward = float(mean(epoch_rewards))
+    success_rate = n_successful_attacks / len(dataloader.dataset)  # type: ignore
     metric_logger.add_epoch_metrics(
         mean_final_reward,
-        mean(epoch_policy_losses),
-        mean(epoch_value_losses),
-        mean(epoch_fooling_factors),
-        mean(epoch_similarity_scores),
+        float(mean(epoch_policy_losses)),
+        float(mean(epoch_value_losses)),
+        float(mean(epoch_fooling_factors)),
+        float(mean(epoch_similarity_scores)),
         success_rate,
-        TRAIN
+        TRAIN,
     )
     return mean_final_reward
 
@@ -398,28 +440,22 @@ def train(
         attacker_optimizer,
         value_optimizer,
     )
-    best_mean_final_rewards = 0.0
+    best_mean_final_rewards = -1.0
+    best_epoch = -1
 
-    for _ in tqdm(range(n_epochs), desc="training..."):
-        iteration(
-            ppo_trainer,
-            train_dataloader,
-            device,
-            common_max_length,
-            metric_logger,
-            TRAIN
-        )
+    for i in tqdm(range(n_epochs), desc="training..."):
+        iteration(ppo_trainer, train_dataloader, device, common_max_length, metric_logger, TRAIN)
         new_mean_final_rewards = iteration(
-            ppo_trainer,
-            eval_dataloader,
-            device,
-            common_max_length,
-            metric_logger,
-            EVAL
+            ppo_trainer, eval_dataloader, device, common_max_length, metric_logger, EVAL
         )
         if new_mean_final_rewards > best_mean_final_rewards:
+            best_epoch = i
             best_mean_final_rewards = new_mean_final_rewards
             ppo_trainer.save_trained_model(model_save_path)
+
+    metric_logger.save_logs()
+    metric_logger.save_summary(best_epoch)
+    metric_logger.save_plots()
 
 
 def main(
@@ -439,17 +475,17 @@ def main(
 ) -> None:
     device = get_available_torch_device()
     victim_config["device"] = device
+    attacker_config["device"] = device
     victim = MODELS_DICT[victim_class](**victim_config)
     victim.load_state_dict(torch.load(victim_weights_path, map_location=torch.device(device)))
     victim.to(device)
     victim.eval()
-    # todo make sure this doesn't die on gpu
     attacker = GenerativeAttacker.from_config(attacker_config)
     similarity_evaluator = SimilarityEvaluator(similarity_evaluator_name, device)
 
     common_max_length = min(attacker.max_length, victim.max_length)
 
-    value_model = ValueModel(value_model_name, common_max_length)
+    value_model = ValueModel(value_model_name, common_max_length, device)
 
     train_dataset = DATASETS_DICT[victim_class](
         train_split_path,

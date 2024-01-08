@@ -27,7 +27,7 @@ class WelfakeDataset(FakeNewsDetectorDataset):
         dataset_csv_path: Path,
         tokenizer: PreTrainedTokenizer,
         max_length: int,
-        # todo this should be decoupled
+        # todo this should be decoupled, design bad
         include_logits: bool = False,
         attacker_tokenizer: PreTrainedTokenizer | None = None,
     ):

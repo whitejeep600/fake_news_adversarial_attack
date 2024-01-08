@@ -1,12 +1,13 @@
 import torch
 from torch.nn import Linear
-from transformers import BertModel, AutoTokenizer
+from transformers import AutoTokenizer, BertModel
 
 
 class ValueModel(torch.nn.Module):
-    def __init__(self, model_name: str, max_length: int):
+    def __init__(self, model_name: str, max_length: int, device: str):
         super(ValueModel, self).__init__()
         self.bert = BertModel.from_pretrained(model_name)
+        self.bert.to(device)
         self.linear_to_logit = Linear(self.bert.config.hidden_size * 2, 1)
         self.max_length = max_length
         self.tokenizer = AutoTokenizer.from_pretrained(model_name)

@@ -4,7 +4,7 @@ from typing import Any
 import pandas as pd
 import torch
 import yaml
-from torch.utils.data import DataLoader, Dataset
+from torch.utils.data import DataLoader
 from tqdm import tqdm
 
 from src.evaluate_attack import DATASETS_DICT, MODELS_DICT
@@ -20,7 +20,9 @@ def add_logits_to_split(
 ) -> None:
     original_dataframe = pd.read_csv(split_path)
     original_dataframe.reset_index(drop=True)
-    dataset = DATASETS_DICT[victim_class](split_path, model.tokenizer, model.max_length)
+    dataset = DATASETS_DICT[victim_class](
+        split_path, model.tokenizer, model.max_length
+    )  # type: ignore
     dataloader = DataLoader(dataset, batch_size=batch_size, shuffle=False)
     id_to_logits: dict[int, tuple[float, float]] = {}
     with torch.no_grad():

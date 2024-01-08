@@ -4,7 +4,7 @@
 
 import torch
 from torch.nn import Linear
-from transformers import AutoTokenizer, BertModel, Pipeline
+from transformers import AutoTokenizer, BertModel
 
 from models.base import FakeNewsDetector
 

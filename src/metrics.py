@@ -95,6 +95,7 @@ class SimilarityEvaluator:
 
     def compare_to_reference(self, text: str) -> float:
         text_encoding = self.model.encode(text, convert_to_tensor=True)
+        assert self.whole_reference_encoding is not None
         return torch.cosine_similarity(self.whole_reference_encoding, text_encoding, dim=0).item()
 
     def evaluate(self, text1: str, text2: str) -> float:

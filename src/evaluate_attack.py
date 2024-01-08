@@ -37,15 +37,6 @@ DATASETS_DICT: dict[str, type[FakeNewsDetectorDataset]] = {
 }
 
 
-# todo code structure probably different for easy experiments but let's develop
-#  say two models and two attackers first and then see how to organize it neatly
-# todo maybe move some of the dataset management to the model, in particular make
-#  sure the same data is loaded from the source .csv (no author and so on). Or
-#  create a super class FakeNewsDataset implementing methods required for training
-#  and for this evaluation script, and inherit from it in different models (e.g.
-#  what is currently FakeNewsDataset will become BaselineDataset)
-
-
 def process_sample(
     sample: dict,
     model: FakeNewsDetector,
@@ -133,7 +124,7 @@ def main(
     metrics: list[AttackSingleSampleMetrics | None] = []
 
     n_samples = len(eval_dataset)
-    num_workers = multiprocessing.cpu_count()  # todo probably make that a parameter
+    num_workers = multiprocessing.cpu_count()
     samples_q: multiprocessing.Queue = multiprocessing.Queue(maxsize=num_workers * 2)
     metrics_q: multiprocessing.Queue = multiprocessing.Queue(maxsize=n_samples)
     processes = [
