@@ -147,6 +147,7 @@ class PPOTrainer:
         similarity_evaluator: SimilarityEvaluator,
         attacker_optimizer: Optimizer,
         value_optimizer: Optimizer,
+        device: str
     ):
         self.trained_model = trained_model
         self.reference_model = copy.deepcopy(reference_model)
@@ -155,6 +156,7 @@ class PPOTrainer:
         self.similarity_evaluator = similarity_evaluator
         self.attacker_optimizer = attacker_optimizer
         self.value_optimizer = value_optimizer
+        self.device = device
 
     def freeze_reference_model(self):
         self.reference_model = copy.deepcopy(self.trained_model)
@@ -163,6 +165,7 @@ class PPOTrainer:
     def decode_tokens_and_get_logits(
         self, batch: torch.Tensor, max_length: int
     ) -> tuple[list[torch.Tensor], list[torch.Tensor], list[torch.Tensor]]:
+        batch = batch.to(self.device)
         torch.set_grad_enabled(True)
         generated_ids: list[torch.Tensor] = []
         token_probabilities: list[torch.Tensor] = []
@@ -440,6 +443,7 @@ def train(
         similarity_evaluator,
         attacker_optimizer,
         value_optimizer,
+        device
     )
     best_mean_final_rewards = -1.0
     best_epoch = -1
