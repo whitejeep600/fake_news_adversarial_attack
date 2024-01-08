@@ -346,6 +346,7 @@ def iteration(
         total=len(dataloader),
         desc=f"{mode} iteration",
         leave=False,
+        position=1
     ):
         input_ids = batch["attacker_prompt_ids"].to(device)
         generated_ids, token_probs, reference_probs = ppo_trainer.decode_tokens_and_get_logits(
@@ -443,7 +444,7 @@ def train(
     best_mean_final_rewards = -1.0
     best_epoch = -1
 
-    for i in tqdm(range(n_epochs), desc="training..."):
+    for i in tqdm(range(n_epochs), desc="training...", position=0):
         iteration(ppo_trainer, train_dataloader, device, common_max_length, metric_logger, TRAIN)
         new_mean_final_rewards = iteration(
             ppo_trainer, eval_dataloader, device, common_max_length, metric_logger, EVAL
