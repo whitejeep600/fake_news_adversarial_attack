@@ -11,6 +11,7 @@ class GenerativeAttacker(AdversarialAttacker):
         super().__init__()
         self.bert = BartForConditionalGeneration.from_pretrained(model_name)
         self.bert.to(device)
+        self.device = device
         self.tokenizer = BartTokenizer.from_pretrained(model_name)
         self.max_length = max_length
 
@@ -37,7 +38,7 @@ class GenerativeAttacker(AdversarialAttacker):
         logits for each step.
 
         """
-        decoded = torch.Tensor([[self.bert.config.decoder_start_token_id]]).int()
+        decoded = torch.Tensor([[self.bert.config.decoder_start_token_id]]).int().to(self.device)
         scores: list[torch.Tensor] = []
         for _ in range(max_length - 1):
             next_one = self.bert(
@@ -46,7 +47,7 @@ class GenerativeAttacker(AdversarialAttacker):
             )
             new_scores = next_one.logits[0][-1, :]
             next_id = torch.argmax(new_scores, dim=-1)
-            decoded = torch.cat((decoded, torch.Tensor([[next_id]]).int()), dim=-1)
+            decoded = torch.cat((decoded, torch.Tensor([[next_id]]).int().to(self.device)), dim=-1)
             scores.append(new_scores.unsqueeze(0))
             if next_id == self.bert.generation_config.eos_token_id:
                 break

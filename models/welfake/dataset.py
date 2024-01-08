@@ -33,7 +33,6 @@ class WelfakeDataset(FakeNewsDetectorDataset):
     ):
         super().__init__(dataset_csv_path, tokenizer, max_length)
         source_df = pd.read_csv(dataset_csv_path)
-        print(source_df)
 
         processed_df = pd.DataFrame()
         processed_df["text"] = source_df.apply(lambda x: concatenate_article_data(x), axis=1)

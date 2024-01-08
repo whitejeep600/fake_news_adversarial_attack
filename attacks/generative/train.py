@@ -147,7 +147,7 @@ class PPOTrainer:
         similarity_evaluator: SimilarityEvaluator,
         attacker_optimizer: Optimizer,
         value_optimizer: Optimizer,
-        device: str
+        device: str,
     ):
         self.trained_model = trained_model
         self.reference_model = copy.deepcopy(reference_model)
@@ -221,7 +221,9 @@ class PPOTrainer:
         self, batch_prefixes: list[list[str]], original_seqs: list[str]
     ) -> list[torch.Tensor]:
         similarity_scores = [
-            torch.Tensor(self.similarity_evaluator.evaluate_prefixes(sample_prefixes, original_seq))
+            torch.Tensor(
+                self.similarity_evaluator.evaluate_prefixes(sample_prefixes, original_seq)
+            ).to(self.device)
             for sample_prefixes, original_seq in zip(batch_prefixes, original_seqs)
         ]
         return similarity_scores
@@ -345,11 +347,7 @@ def iteration(
     n_successful_attacks = 0
 
     for batch in tqdm(
-        dataloader,
-        total=len(dataloader),
-        desc=f"{mode} iteration",
-        leave=False,
-        position=1
+        dataloader, total=len(dataloader), desc=f"{mode} iteration", leave=False, position=1
     ):
         input_ids = batch["attacker_prompt_ids"].to(device)
         generated_ids, token_probs, reference_probs = ppo_trainer.decode_tokens_and_get_logits(
@@ -369,7 +367,6 @@ def iteration(
         n_successful_attacks += sum(
             [sample_fooling_factors[-1].item() > 0.5 for sample_fooling_factors in fooling_factors]
         )
-
         rewards = [
             (fooling_factors[i] + similarity_scores[i]) / 2 for i in range(len(batch_prefixes))
         ]
@@ -443,7 +440,7 @@ def train(
         similarity_evaluator,
         attacker_optimizer,
         value_optimizer,
-        device
+        device,
     )
     best_mean_final_rewards = -1.0
     best_epoch = -1
@@ -486,6 +483,7 @@ def main(
     victim.to(device)
     victim.eval()
     attacker = GenerativeAttacker.from_config(attacker_config)
+    attacker.bert.to(device)
     similarity_evaluator = SimilarityEvaluator(similarity_evaluator_name, device)
 
     common_max_length = min(attacker.max_length, victim.max_length)

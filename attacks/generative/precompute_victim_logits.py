@@ -21,8 +21,8 @@ def add_logits_to_split(
     original_dataframe = pd.read_csv(split_path)
     original_dataframe.reset_index(drop=True)
     dataset = DATASETS_DICT[victim_class](
-        split_path, model.tokenizer, model.max_length
-    )  # type: ignore
+        split_path, model.tokenizer, model.max_length  # type: ignore
+    )
     dataloader = DataLoader(dataset, batch_size=batch_size, shuffle=False)
     id_to_logits: dict[int, tuple[float, float]] = {}
     with torch.no_grad():
