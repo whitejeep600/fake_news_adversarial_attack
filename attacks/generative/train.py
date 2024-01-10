@@ -232,7 +232,7 @@ class PPOTrainer:
         self, batch_prefixes: list[list[str]], original_seqs: list[str]
     ) -> list[torch.Tensor]:
         return [
-            torch.concatenate(
+            torch.concat(
                 [self.value_model.get_value(prefix, original_seq) for prefix in sample_prefixes]
             )
             for sample_prefixes, original_seq in zip(batch_prefixes, original_seqs)
@@ -273,7 +273,7 @@ class PPOTrainer:
 
     def get_policy_loss(self, clipped_objectives: list[torch.Tensor]) -> torch.Tensor:
         # gradient ascent
-        policy_loss = -1 * torch.mean(torch.concatenate(clipped_objectives))
+        policy_loss = -1 * torch.mean(torch.concat(clipped_objectives))
         return policy_loss
 
     def policy_loss_step(self, policy_loss: torch.Tensor) -> None:
@@ -285,7 +285,7 @@ class PPOTrainer:
         self, rewards: list[torch.Tensor], values: list[torch.Tensor]
     ) -> torch.Tensor:
         value_loss = torch.mean(
-            torch.concatenate([values[i] - rewards[i][-1] for i in range(batch_size)])
+            torch.concat([values[i] - rewards[i][-1] for i in range(batch_size)])
         )
         return value_loss
 
@@ -391,10 +391,10 @@ def iteration(
 
         epoch_rewards.append(float(mean(final_rewards)))
         epoch_fooling_factors.append(
-            float(torch.mean(torch.concatenate(fooling_factors, dim=0)).item())
+            float(torch.mean(torch.concat(fooling_factors, dim=0)).item())
         )
         epoch_fooling_factors.append(
-            float(torch.mean(torch.concatenate(similarity_scores, dim=0)).item())
+            float(torch.mean(torch.concat(similarity_scores, dim=0)).item())
         )
 
     mean_final_reward = float(mean(epoch_rewards))
