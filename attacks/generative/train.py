@@ -174,7 +174,6 @@ class PPOTrainer:
         token_probabilities: list[torch.Tensor] = []
         reference_probabilities: list = []
         for seq in batch:
-            max_length = 20  # todo
             new_ids, scores = self.trained_model.generate_with_greedy_decoding(
                 seq.unsqueeze(0), max_length
             )

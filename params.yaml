@@ -48,8 +48,8 @@ attacks.generative:
   train_split_path: data/generative/train_with_logits.csv
   eval_split_path: data/generative/eval_with_logits.csv
   similarity_evaluator_name: flax-sentence-embeddings/all_datasets_v4_MiniLM-L6
-  value_model_name: prajjwal1/bert-tiny
-  #value_model_name: bert-base-uncased todo
+  #value_model_name: prajjwal1/bert-tiny
+  value_model_name: bert-base-uncased
 
 attacks.generative.precompute_victim_logits:
   train_split_path: data/welfake/train.csv
