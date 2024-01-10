@@ -151,6 +151,8 @@ class PPOTrainer:
     ):
         self.trained_model = trained_model
         self.reference_model = copy.deepcopy(reference_model)
+        self.trained_model.bert.to(device)
+        self.trained_model.bert.to(device)
         self.value_model = value_model
         self.victim_model = victim_model
         self.similarity_evaluator = similarity_evaluator
@@ -165,6 +167,7 @@ class PPOTrainer:
     def decode_tokens_and_get_logits(
         self, batch: torch.Tensor, max_length: int
     ) -> tuple[list[torch.Tensor], list[torch.Tensor], list[torch.Tensor]]:
+        self.attacker_optimizer.zero_grad()
         batch = batch.to(self.device)
         torch.set_grad_enabled(True)
         generated_ids: list[torch.Tensor] = []
@@ -231,6 +234,7 @@ class PPOTrainer:
     def get_value_function_scores(
         self, batch_prefixes: list[list[str]], original_seqs: list[str]
     ) -> list[torch.Tensor]:
+        self.value_optimizer.zero_grad()
         return [
             torch.concat(
                 [self.value_model.get_value(prefix, original_seq) for prefix in sample_prefixes]
@@ -246,20 +250,22 @@ class PPOTrainer:
         reference_probs: list[torch.Tensor],
     ) -> list[torch.Tensor]:
         max_generated_length = max([len(reward_tensor) for reward_tensor in rewards])
-        discount_exponents = torch.pow(GAMMA * LAMBDA, torch.arange(max_generated_length))
+        discount_exponents = torch.pow(GAMMA * LAMBDA, torch.arange(max_generated_length)).to(self.device)
         # Again, following the notation and equations from Schulman et al.
         batch_size = len(rewards)
         gammas = [
             rewards[i][:-1] + GAMMA * values[i][1:] - values[i][:-1] for i in range(batch_size)
         ]
+        assert discount_exponents.get_device() == 0
         advantages = [
-            torch.Tensor(
+            torch.stack(
                 [
                     torch.sum(
                         gammas[batch_index][t:] * discount_exponents[: len(gammas[batch_index][t:])]
                     )
                     for t in range(len(rewards[batch_index]))
-                ]
+                ],
+                dim=0
             )
             for batch_index in range(batch_size)
         ]
@@ -277,7 +283,6 @@ class PPOTrainer:
         return policy_loss
 
     def policy_loss_step(self, policy_loss: torch.Tensor) -> None:
-        self.attacker_optimizer.zero_grad()
         policy_loss.backward()
         self.attacker_optimizer.step()
 
@@ -290,8 +295,7 @@ class PPOTrainer:
         return value_loss
 
     def value_loss_step(self, value_loss: torch.Tensor) -> None:
-        self.value_optimizer.zero_grad()
-        value_loss.backward()
+        value_loss.backward(retain_graph=True)
         self.value_optimizer.step()
 
     def train(self) -> None:
