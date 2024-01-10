@@ -250,25 +250,25 @@ class PPOTrainer:
         reference_probs: list[torch.Tensor],
     ) -> list[torch.Tensor]:
         max_generated_length = max([len(reward_tensor) for reward_tensor in rewards])
-        discount_exponents = torch.pow(GAMMA * LAMBDA, torch.arange(max_generated_length)).to(self.device)
-        # Again, following the notation and equations from Schulman et al.
-        batch_size = len(rewards)
-        gammas = [
-            rewards[i][:-1] + GAMMA * values[i][1:] - values[i][:-1] for i in range(batch_size)
-        ]
-        assert discount_exponents.get_device() == 0
-        advantages = [
-            torch.stack(
-                [
-                    torch.sum(
-                        gammas[batch_index][t:] * discount_exponents[: len(gammas[batch_index][t:])]
-                    )
-                    for t in range(len(rewards[batch_index]))
-                ],
-                dim=0
-            )
-            for batch_index in range(batch_size)
-        ]
+        with torch.no_grad():
+            discount_exponents = torch.pow(GAMMA * LAMBDA, torch.arange(max_generated_length)).to(self.device)
+            # Again, following the notation and equations from Schulman et al.
+            batch_size = len(rewards)
+            gammas = [
+                rewards[i][:-1] + GAMMA * values[i][1:] - values[i][:-1] for i in range(batch_size)
+            ]
+            advantages = [
+                torch.stack(
+                    [
+                        torch.sum(
+                            gammas[batch_index][t:] * discount_exponents[: len(gammas[batch_index][t:])]
+                        )
+                        for t in range(len(rewards[batch_index]))
+                    ],
+                    dim=0
+                )
+                for batch_index in range(batch_size)
+            ]
         ratios = [token_probs[i] / reference_probs[i] for i in range(batch_size)]
         clipped_ratios = [torch.clip(ratio, 1 - EPSILON, 1 + EPSILON) for ratio in ratios]
         clipped_objectives = [
@@ -290,7 +290,7 @@ class PPOTrainer:
         self, rewards: list[torch.Tensor], values: list[torch.Tensor]
     ) -> torch.Tensor:
         value_loss = torch.mean(
-            torch.concat([values[i] - rewards[i][-1] for i in range(batch_size)])
+            torch.concat([values[i] - rewards[i][-1].detach() for i in range(batch_size)])
         )
         return value_loss
 
@@ -368,12 +368,12 @@ def iteration(
             fooling_factors = ppo_trainer.get_fooling_factors(batch_prefixes, 1 - batch["label"])
             similarity_scores = ppo_trainer.get_similarity_scores(batch_prefixes, original_seqs)
 
-        n_successful_attacks += sum(
-            [sample_fooling_factors[-1].item() > 0.5 for sample_fooling_factors in fooling_factors]
-        )
-        rewards = [
-            (fooling_factors[i] + similarity_scores[i]) / 2 for i in range(len(batch_prefixes))
-        ]
+            n_successful_attacks += sum(
+                [sample_fooling_factors[-1].item() > 0.5 for sample_fooling_factors in fooling_factors]
+            )
+            rewards = [
+                (fooling_factors[i] + similarity_scores[i]) / 2 for i in range(len(batch_prefixes))
+            ]
 
         values = ppo_trainer.get_value_function_scores(batch_prefixes, original_seqs)
 

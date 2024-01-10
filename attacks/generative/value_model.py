@@ -20,7 +20,7 @@ class ValueModel(torch.nn.Module):
     #  can take. A simple improvement could be to have separate nets
     #  for the sequences, but for PPO generative attack training we
     #  already have 5 models running xd so I'd be cautious
-    # also, this can be done in batches during training
+    # also, this can be done in batches during training - todo this as a general remark
     def get_value(self, generated_sequence: str, source_sequence: str) -> torch.Tensor:
         tokenized_source = self.tokenizer(
             source_sequence,
