@@ -1,8 +1,10 @@
 import copy
 import json
 import time
+import warnings
+from functools import partial
 from pathlib import Path
-from typing import Any
+from typing import Any, Callable
 
 import torch
 import yaml
@@ -36,129 +38,65 @@ EVAL = "eval"
 MODES = [TRAIN, EVAL]
 
 
-class MetricLogger:
-    def __init__(self, save_dir: Path):
-        self.save_dir = save_dir
-        self.rewards: dict[str, list[float]] = {
-            TRAIN: [],
-            EVAL: [],
-        }
-        self.policy_losses: dict[str, list[float]] = {
-            TRAIN: [],
-            EVAL: [],
-        }
-        self.value_losses: dict[str, list[float]] = {
-            TRAIN: [],
-            EVAL: [],
-        }
-        self.fooling_factors: dict[str, list[float]] = {
-            TRAIN: [],
-            EVAL: [],
-        }
-        self.similarity_scores: dict[str, list[float]] = {
-            TRAIN: [],
-            EVAL: [],
-        }
-        self.success_rates: dict[str, list[float]] = {
-            TRAIN: [],
-            EVAL: [],
-        }
-        self.epochs_elapsed = 0
+REWARD_METRIC = "reward"
+POLICY_LOSS_METRIC = "policy_loss"
+VALUE_LOSS_METRIC = "value_loss"
 
-        self.all_data = {
-            "rewards": self.rewards,
-            "policy_losses": self.policy_losses,
-            "value_losses": self.value_losses,
-            "fooling_factors": self.fooling_factors,
-            "similarity_scores": self.similarity_scores,
-            "success_rates": self.success_rates,
-        }
-        self.train_start_time = time.time()
 
-    def add_epoch_metrics(
-        self,
-        epoch_mean_reward: float,
-        epoch_mean_policy_loss: float,
-        epoch_mean_value_loss: float,
-        epoch_mean_fooling_factor: float,
-        epoch_mean_similarity_score: float,
-        epoch_success_rate: float,
-        mode: str,
-    ) -> None:
-        assert mode in MODES, f"unsupported mode, expected one of {MODES}"
-        self.rewards[mode].append(epoch_mean_reward)
-        self.policy_losses[mode].append(epoch_mean_policy_loss)
-        self.value_losses[mode].append(epoch_mean_value_loss)
-        self.fooling_factors[mode].append(epoch_mean_fooling_factor)
-        self.similarity_scores[mode].append(epoch_mean_similarity_score)
-        self.success_rates[mode].append(epoch_success_rate)
-        print(
-            f"Epoch {self.epochs_elapsed},"
-            f" this epoch's mean {mode} reward: {epoch_mean_reward},"
-            f" mean {mode} policy loss {epoch_mean_policy_loss},"
-            f" mean {mode} value loss{epoch_mean_value_loss},"
-            f" mean {mode} fooling factor: {epoch_mean_fooling_factor},"
-            f" mean {mode} similarity score: {epoch_mean_similarity_score},"
-            f" mean {mode} success rate: {epoch_success_rate}.\n"
-        )
-        if mode == EVAL:
-            self.epochs_elapsed += 1
+def all_equal(values) -> bool:
+    return len(values) == 0 or all([value == values[0] for value in values])
 
-    def save_plots(self) -> None:
-        plots_path = self.save_dir / "plots"
-        plots_path.mkdir(parents=True, exist_ok=True)
-        for variable in self.all_data.keys():
-            for mode in MODES:
-                title = f"{mode}_{variable}"
-                plt.title(title)
-                plt.plot(self.all_data[variable][mode])
-                plt.xlabel("iteration")
-                plt.savefig(plots_path / f"{title}.jpg")
 
-    def save_logs(self) -> None:
-        logs_path = self.save_dir / "log.txt"
-        with open(logs_path, "w") as f:
-            f.write(json.dumps(self.all_data, indent=4))
+# Just a util to automatically create a target list if it doesn't exist, yo
+class ListDict:
+    def __init__(self):
+        self.lists: dict[str, list] = {}
 
-    def save_summary(self, best_epoch_no: int) -> None:
-        time_now = time.time()
-        time_elapsed = time.gmtime(time_now - self.train_start_time)
+    def append(self, list_name: str, item):
+        if list_name not in self.lists.keys():
+            self.lists[list_name] = []
+        self.lists[list_name].append(item)
 
-        summary_path = self.save_dir / "summary.txt"
-        best_epoch_stats = {
-            key: self.all_data[key][EVAL][best_epoch_no] for key in self.all_data.keys()
-        }
-        summary = (
-            f"Training time: {time.strftime('%H:%M:%S', time_elapsed)}"
-            f" Number of epochs elapsed: {self.epochs_elapsed}, best stats (final rewards)"
-            f" for epoch {best_epoch_no}, as follows: {best_epoch_stats}"
-        )
-        with open(summary_path, "w") as f:
-            f.write(summary)
+    def __getitem__(self, item):
+        return self.lists[item]
 
 
 class PPOTrainer:
     def __init__(
         self,
         trained_model: GenerativeAttacker,
-        reference_model: GenerativeAttacker,
+        rewards_and_metrics_function: Callable,
         value_model: ValueModel,
-        victim_model: FakeNewsDetector,
-        similarity_evaluator: SimilarityEvaluator,
         attacker_optimizer: Optimizer,
         value_optimizer: Optimizer,
         device: str,
+        stats_save_dir: Path
     ):
         self.trained_model = trained_model
-        self.reference_model = copy.deepcopy(reference_model)
+        self.rewards_and_metrics_function = rewards_and_metrics_function
+        self.reference_model = copy.deepcopy(self.trained_model)
+        self.reference_model.eval()
         self.trained_model.bert.to(device)
-        self.trained_model.bert.to(device)
+        self.reference_model.bert.to(device)
         self.value_model = value_model
-        self.victim_model = victim_model
-        self.similarity_evaluator = similarity_evaluator
         self.attacker_optimizer = attacker_optimizer
         self.value_optimizer = value_optimizer
         self.device = device
+        self.stats_save_dir = stats_save_dir
+        self.standard_metric_names = [
+            REWARD_METRIC,
+            POLICY_LOSS_METRIC,
+            VALUE_LOSS_METRIC,
+        ]
+        self.all_data: dict[str, dict[str, list[float]]] = {
+            metric_name: {
+                TRAIN: [],
+                EVAL: []
+            }
+            for metric_name in self.standard_metric_names
+        }
+        self.train_start_time = time.time()
+        self.epochs_elapsed = 0
 
     def freeze_reference_model(self):
         self.reference_model = copy.deepcopy(self.trained_model)
@@ -198,38 +136,6 @@ class PPOTrainer:
     def decode_prefixes(self, generated_ids: list[torch.Tensor]) -> list[list[str]]:
         return self.trained_model.decode_prefixes(generated_ids)
 
-    def get_fooling_factors(
-        self, batch_prefixes: list[list[str]], target_labels: torch.Tensor
-    ) -> list[torch.Tensor]:
-        victim_classification_probabilities: list[torch.Tensor] = []
-        for sample_prefixes in batch_prefixes:
-            sample_probabilities: list[torch.Tensor] = []
-            for prefix in sample_prefixes:
-                sample_probabilities.append(self.victim_model.get_probabilities(prefix))
-            victim_classification_probabilities.append(torch.stack(sample_probabilities))
-        # i.e. target label probabilities
-        fooling_factors = [
-            torch.stack(
-                [
-                    victim_classification_probabilities[i][j][target_labels[i]]
-                    for j in range(len(victim_classification_probabilities[i]))
-                ]
-            )
-            for i in range(len(batch_prefixes))
-        ]
-        return fooling_factors
-
-    def get_similarity_scores(
-        self, batch_prefixes: list[list[str]], original_seqs: list[str]
-    ) -> list[torch.Tensor]:
-        similarity_scores = [
-            torch.Tensor(
-                self.similarity_evaluator.evaluate_prefixes(sample_prefixes, original_seq)
-            ).to(self.device)
-            for sample_prefixes, original_seq in zip(batch_prefixes, original_seqs)
-        ]
-        return similarity_scores
-
     def get_value_function_scores(
         self, batch_prefixes: list[list[str]], original_seqs: list[str]
     ) -> list[torch.Tensor]:
@@ -251,7 +157,7 @@ class PPOTrainer:
         max_generated_length = max([len(reward_tensor) for reward_tensor in rewards])
         with torch.no_grad():
             discount_exponents = torch.pow(GAMMA * LAMBDA, torch.arange(max_generated_length)).to(self.device)
-            # Again, following the notation and equations from Schulman et al.
+            # Following the notation and equations from Schulman et al.
             batch_size = len(rewards)
             gammas = [
                 rewards[i][:-1] + GAMMA * values[i][1:] - values[i][:-1] for i in range(batch_size)
@@ -301,117 +207,227 @@ class PPOTrainer:
         self.trained_model.train()
         self.value_model.train()
         self.reference_model.eval()
-        self.victim_model.train()
-        self.similarity_evaluator.eval()
 
     def eval(self) -> None:
         self.trained_model.eval()
         self.value_model.eval()
         self.reference_model.eval()
-        self.victim_model.train()
-        self.similarity_evaluator.eval()
 
-    def set_mode(self, mode: str):
+    def initialize_iteration(self, mode: str):
         assert mode in MODES, f"unsupported mode, expected one of {MODES}"
         if mode == TRAIN:
             self.train()
         else:
             self.eval()
+        self.epochs_elapsed += 1
 
     def save_trained_model(self, path: Path) -> None:
         torch.save(self.trained_model.bert.state_dict(), path)
-        # todo maybe also save the value model
 
+    def iteration(
+            self,
+            dataloader: DataLoader,
+            device: str,
+            common_max_length: int,
+            mode: str,
+    ) -> float:
+        assert mode in MODES, f"unsupported mode, expected one of {MODES}"
 
-def all_equal(values) -> bool:
-    return len(values) == 0 or all([value == values[0] for value in values])
-
-
-def iteration(
-    ppo_trainer: PPOTrainer,
-    dataloader: DataLoader,
-    device: str,
-    common_max_length: int,
-    metric_logger: MetricLogger,
-    mode: str,
-) -> float:
-    assert mode in MODES, f"unsupported mode, expected one of {MODES}"
-
-    ppo_trainer.set_mode(mode)
-    if mode == TRAIN:
-        ppo_trainer.freeze_reference_model()
-
-    epoch_policy_losses: list[float] = []
-    epoch_value_losses: list[float] = []
-    epoch_rewards: list[float] = []
-    epoch_fooling_factors: list[float] = []
-    epoch_similarity_scores: list[float] = []
-
-    n_successful_attacks = 0
-
-    for batch in tqdm(
-        dataloader, total=len(dataloader), desc=f"{mode} iteration", leave=False, position=1
-    ):
-        input_ids = batch["attacker_prompt_ids"].to(device)
-        generated_ids, token_probs, reference_probs = ppo_trainer.decode_tokens_and_get_logits(
-            input_ids, common_max_length
-        )
-        batch_prefixes = ppo_trainer.decode_prefixes(generated_ids)
-
-        for i in range(len(batch_prefixes)):
-            assert all_equal([len(token_probs[i]), len(reference_probs[i]), len(batch_prefixes[i])])
-
-        original_seqs = batch["attacker_prompt"]
-
-        with torch.no_grad():
-            fooling_factors = ppo_trainer.get_fooling_factors(batch_prefixes, 1 - batch["label"])
-            similarity_scores = ppo_trainer.get_similarity_scores(batch_prefixes, original_seqs)
-
-            n_successful_attacks += sum(
-                [sample_fooling_factors[-1].item() > 0.5 for sample_fooling_factors in fooling_factors]
-            )
-            rewards = [
-                (fooling_factors[i] + similarity_scores[i]) / 2 for i in range(len(batch_prefixes))
-            ]
-
-        values = ppo_trainer.get_value_function_scores(batch_prefixes, original_seqs)
-
-        clipped_objectives = ppo_trainer.get_clipped_objectives(
-            rewards, values, token_probs, reference_probs
-        )
-
-        policy_loss = ppo_trainer.get_policy_loss(clipped_objectives)
-        value_loss = ppo_trainer.get_value_loss(rewards, values)
-
+        self.initialize_iteration(mode)
         if mode == TRAIN:
-            ppo_trainer.policy_loss_step(policy_loss)
-            ppo_trainer.value_loss_step(value_loss)
+            self.freeze_reference_model()
 
-        epoch_policy_losses.append(policy_loss.item())
-        epoch_value_losses.append(value_loss.item())
+        epoch_policy_losses: list[float] = []
+        epoch_value_losses: list[float] = []
+        epoch_rewards: list[float] = []
+        nonstandard_metrics = ListDict()
 
-        final_rewards = [reward[-1].item() for reward in rewards]
+        for batch in tqdm(
+                dataloader, total=len(dataloader), desc=f"{mode} iteration", leave=False, position=1
+        ):
+            input_ids = batch["attacker_prompt_ids"].to(device)
+            generated_ids, token_probs, reference_probs = self.decode_tokens_and_get_logits(
+                input_ids, common_max_length
+            )
+            batch_prefixes = self.decode_prefixes(generated_ids)
 
-        epoch_rewards.append(float(mean(final_rewards)))
-        epoch_fooling_factors.append(
-            float(torch.mean(torch.concat(fooling_factors, dim=0)).item())
+            for i in range(len(batch_prefixes)):
+                assert all_equal(
+                    [len(token_probs[i]), len(reference_probs[i]), len(batch_prefixes[i])])
+
+            original_seqs = batch["attacker_prompt"]
+
+            with torch.no_grad():
+                rewards, stats = self.rewards_and_metrics_function(batch, batch_prefixes, original_seqs)
+
+            for stat_name in stats.keys():
+                nonstandard_metrics.append(stat_name, stats[stat_name])
+
+            values = self.get_value_function_scores(batch_prefixes, original_seqs)
+
+            clipped_objectives = self.get_clipped_objectives(
+                rewards, values, token_probs, reference_probs
+            )
+
+            policy_loss = self.get_policy_loss(clipped_objectives)
+            value_loss = self.get_value_loss(rewards, values)
+
+            if mode == TRAIN:
+                self.policy_loss_step(policy_loss)
+                self.value_loss_step(value_loss)
+
+            epoch_policy_losses.append(policy_loss.item())
+            epoch_value_losses.append(value_loss.item())
+
+            final_rewards = [reward[-1].item() for reward in rewards]
+
+            epoch_rewards.append(float(mean(final_rewards)))
+
+        mean_final_reward = float(mean(epoch_rewards))
+        self.add_epoch_metrics(
+            {
+                REWARD_METRIC: mean_final_reward,
+                POLICY_LOSS_METRIC: float(mean(epoch_policy_losses)),
+                VALUE_LOSS_METRIC: float(mean(epoch_value_losses)),
+            },
+            mode
         )
-        epoch_fooling_factors.append(
-            float(torch.mean(torch.concat(similarity_scores, dim=0)).item())
+        self.add_nonstandard_epoch_metrics(
+            {
+                list_name: float(mean(nonstandard_metrics[list_name])) for list_name in nonstandard_metrics.lists.keys()
+            },
+            mode
         )
+        return mean_final_reward
 
-    mean_final_reward = float(mean(epoch_rewards))
-    success_rate = n_successful_attacks / len(dataloader.dataset)  # type: ignore
-    metric_logger.add_epoch_metrics(
-        mean_final_reward,
-        float(mean(epoch_policy_losses)),
-        float(mean(epoch_value_losses)),
-        float(mean(epoch_fooling_factors)),
-        float(mean(epoch_similarity_scores)),
-        success_rate,
-        TRAIN,
+    def add_epoch_metrics(
+        self,
+        epoch_metrics: dict[str, float],
+        mode: str,
+    ) -> None:
+        assert mode in MODES, f"unsupported mode, expected one of {MODES}"
+        for metric_name in epoch_metrics.keys():
+            if metric_name in self.standard_metric_names:
+                self.all_data[metric_name][mode].append(epoch_metrics[metric_name])
+            else:
+                warnings.warn(f"Metric '{metric_name}' is not standard, ignoring.")
+        for metric_name in self.standard_metric_names:
+            if metric_name not in epoch_metrics:
+                warnings.warn(f"Metric '{metric_name}' was not passed for this iteration!")
+        print(
+            f"Epoch {self.epochs_elapsed},"
+            f" this epoch's {mode} stats, as follows:\n"
+            f"{epoch_metrics}\n"
+        )
+        if mode == EVAL:
+            self.epochs_elapsed += 1
+
+    def add_nonstandard_epoch_metrics(self, epoch_metrics: dict[str, float], mode: str) -> None:
+        assert mode in MODES, f"unsupported mode, expected one of {MODES}"
+        for metric_name in epoch_metrics.keys():
+            if metric_name not in self.all_data:
+                self.all_data[metric_name] = {
+                    TRAIN: [],
+                    EVAL: []
+                }
+            self.all_data[metric_name][mode].append(epoch_metrics[metric_name])
+
+    def save_plots(self) -> None:
+        plots_path = self.stats_save_dir / "plots"
+        plots_path.mkdir(parents=True, exist_ok=True)
+        for variable in self.all_data.keys():
+            for mode in MODES:
+                title = f"{mode}_{variable}"
+                plt.title(title)
+                plt.plot(self.all_data[variable][mode])
+                plt.xlabel("iteration")
+                plt.savefig(plots_path / f"{title}.jpg")
+
+    def save_logs(self) -> None:
+        logs_path = self.stats_save_dir / "log.txt"
+        with open(logs_path, "w") as f:
+            f.write(json.dumps(self.all_data, indent=4))
+
+    def save_summary(self, best_epoch_no: int) -> None:
+        time_now = time.time()
+        time_elapsed = time.gmtime(time_now - self.train_start_time)
+
+        summary_path = self.stats_save_dir / "summary.txt"
+        best_epoch_stats = {
+            key: self.all_data[key][EVAL][best_epoch_no] for key in self.all_data.keys()
+        }
+        summary = (
+            f"Training time: {time.strftime('%H:%M:%S', time_elapsed)}"
+            f" Number of epochs elapsed: {self.epochs_elapsed}, best stats (final rewards)"
+            f" for epoch {best_epoch_no}, as follows: {best_epoch_stats}"
+        )
+        with open(summary_path, "w") as f:
+            f.write(summary)
+
+
+def get_similarity_scores(
+    batch_prefixes: list[list[str]],
+    original_seqs: list[str],
+    similarity_evaluator: SimilarityEvaluator,
+    device: str
+) -> list[torch.Tensor]:
+    similarity_scores = [
+        torch.Tensor(
+            similarity_evaluator.evaluate_prefixes(sample_prefixes, original_seq)
+        ).to(device)
+        for sample_prefixes, original_seq in zip(batch_prefixes, original_seqs)
+    ]
+    return similarity_scores
+
+
+def get_fooling_factors(
+    batch_prefixes: list[list[str]], target_labels: torch.Tensor, victim: FakeNewsDetector
+) -> list[torch.Tensor]:
+    victim_classification_probabilities: list[torch.Tensor] = []
+    for sample_prefixes in batch_prefixes:
+        sample_probabilities: list[torch.Tensor] = []
+        for prefix in sample_prefixes:
+            sample_probabilities.append(victim.get_probabilities(prefix))
+        victim_classification_probabilities.append(torch.stack(sample_probabilities))
+    # i.e. target label probabilities
+    fooling_factors = [
+        torch.stack(
+            [
+                victim_classification_probabilities[i][j][target_labels[i]]
+                for j in range(len(victim_classification_probabilities[i]))
+            ]
+        )
+        for i in range(len(batch_prefixes))
+    ]
+    return fooling_factors
+
+
+def get_rewards_and_nonstandard_metrics(
+        batch: dict,
+        batch_prefixes: list[list[str]],
+        original_seqs: list[str],
+        similarity_evaluator: SimilarityEvaluator,
+        victim: FakeNewsDetector,
+        device: str
+) -> tuple[list[torch.Tensor], dict[str, float]]:
+    fooling_factors = get_fooling_factors(batch_prefixes, 1 - batch["label"], victim)
+    similarity_scores = get_similarity_scores(batch_prefixes, original_seqs, similarity_evaluator, device)
+
+    n_new_successful_attacks = sum(
+        [sample_fooling_factors[-1].item() > 0.5 for sample_fooling_factors in
+         fooling_factors]
     )
-    return mean_final_reward
+    success_rate = n_new_successful_attacks / len(original_seqs)
+    rewards = [
+        (fooling_factors[i] + similarity_scores[i]) / 2 for i in
+        range(len(batch_prefixes))
+    ]
+    stats = {
+        "fooling_factors": float(torch.mean(torch.concat(fooling_factors, dim=0)).item()),
+        "similarity_scores": float(torch.mean(torch.concat(similarity_scores, dim=0)).item()),
+        "success_rate": success_rate
+    }
+    return rewards, stats
 
 
 def train(
@@ -430,37 +446,44 @@ def train(
 ) -> None:
     attacker_optimizer = AdamW(attacker.parameters(), lr=attacker_lr)
     value_optimizer = AdamW(value_model.parameters(), lr=value_lr)
-    metric_logger = MetricLogger(save_dir)
 
     save_dir.mkdir(exist_ok=True, parents=True)
     model_save_path = save_dir / "ckpt.pt"
 
+    victim.eval()
+    similarity_evaluator.eval()
+    rewards_and_metrics_function = partial(
+        get_rewards_and_nonstandard_metrics,
+        similarity_evaluator=similarity_evaluator,
+        victim=victim,
+        device=device
+    )
+
     ppo_trainer = PPOTrainer(
         attacker,
-        attacker,
+        rewards_and_metrics_function,
         value_model,
-        victim,
-        similarity_evaluator,
         attacker_optimizer,
         value_optimizer,
         device,
+        save_dir
     )
-    best_mean_final_rewards = -1.0
+    best_mean_final_rewards: float | None = None
     best_epoch = -1
 
     for i in tqdm(range(n_epochs), desc="training...", position=0):
-        iteration(ppo_trainer, train_dataloader, device, common_max_length, metric_logger, TRAIN)
-        new_mean_final_rewards = iteration(
-            ppo_trainer, eval_dataloader, device, common_max_length, metric_logger, EVAL
+        ppo_trainer.iteration(train_dataloader, device, common_max_length, TRAIN)
+        new_mean_final_rewards = ppo_trainer.iteration(
+            eval_dataloader, device, common_max_length, EVAL
         )
-        if new_mean_final_rewards > best_mean_final_rewards:
+        if best_mean_final_rewards is None or new_mean_final_rewards > best_mean_final_rewards:
             best_epoch = i
             best_mean_final_rewards = new_mean_final_rewards
             ppo_trainer.save_trained_model(model_save_path)
 
-    metric_logger.save_logs()
-    metric_logger.save_summary(best_epoch)
-    metric_logger.save_plots()
+    ppo_trainer.save_logs()
+    ppo_trainer.save_summary(best_epoch)
+    ppo_trainer.save_plots()
 
 
 def main(
